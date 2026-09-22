@@ -652,10 +652,39 @@ $("redraw").onclick=async()=>{
   $("finish").onclick=async()=>{
     if(vertices.length<3){alert("Necesitamos al menos 3 puntos.");return;}
     const c=centroid(vertices);
-    const {data,error}=await db.from("territorios").update({
-      poligono:vertices,posicion_x:c.x,posicion_y:c.y,updated_at:new Date().toISOString(),updated_by:currentUser?.id||null,updated_by_email:currentUser?.email||""
-    }).eq("id",t.id).select().single();
-    if(error){alert("No se pudo guardar el área: "+error.message);return;}
+const { data: { session } } = await db.auth.getSession();
+
+if (!session) {
+  alert("Sesión no válida.");
+  return;
+}
+
+const respuesta = await fetch(
+  "https://pmogqedfxspyudezyvwd.supabase.co/functions/v1/smooth-endpoint",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({
+      accion: "actualizar_poligono",
+      id: t.id,
+      poligono: vertices,
+      posicion_x: c.x,
+      posicion_y: c.y
+    })
+  }
+);
+
+const resultado = await respuesta.json();
+
+if (!respuesta.ok || !resultado.ok) {
+  alert("No se pudo guardar el área: " + (resultado.mensaje || "Error desconocido"));
+  return;
+}
+
+const data = resultado.territorio;
     $("finish").onclick=oldFinish;
     drawing=false;vertices=[];
     $("edit").disabled=false;$("edit").textContent="Modo edición";$("finish").style.display="none";$("hint").textContent="";
