@@ -582,11 +582,45 @@ async function finishDrawing(){
   if(ts.some(t=>String(t.numero)===numero)){alert("Ese número ya existe. Elegí otro.");return;}
   const blocks=Number(prompt("Cantidad de manzanas:","1"))||1;
   const c=centroid(vertices);
-  const {data,error}=await db.from("territorios").insert({
-    numero,manzanas:Math.max(1,blocks),posicion_x:c.x,posicion_y:c.y,
-    poligono:vertices,estado:"available",fecha_ultima_visita:null,asignado_a:"",persona:"",observaciones:"",updated_by:currentUser?.id||null,updated_by_email:currentUser?.email||""
-  }).select().single();
-  if(error){alert("No se pudo guardar el área: "+error.message);return;}
+const { data: { session } } = await db.auth.getSession();
+
+if (!session) {
+  alert("Sesión no válida.");
+  return;
+}
+
+const respuesta = await fetch(
+  "https://pmogqedfxspyudezyvwd.supabase.co/functions/v1/smooth-endpoint",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({
+      accion: "crear_territorio",
+      numero,
+      manzanas: Math.max(1, blocks),
+      posicion_x: c.x,
+      posicion_y: c.y,
+      poligono: vertices,
+      estado: "available",
+      fecha_ultima_visita: null,
+      asignado_a: "",
+      persona: "",
+      observaciones: ""
+    })
+  }
+);
+
+const resultado = await respuesta.json();
+
+if (!respuesta.ok || !resultado.ok) {
+  alert("No se pudo guardar el área: " + (resultado.mensaje || "Error desconocido"));
+  return;
+}
+
+const data = resultado.territorio;
   drawing=false;vertices=[];
   $("edit").disabled=false;$("edit").textContent="Modo edición";$("finish").style.display="none";$("hint").textContent="";
   await loadTerritories();openPanel(data);
