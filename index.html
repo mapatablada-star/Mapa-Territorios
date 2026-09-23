@@ -779,8 +779,35 @@ const data = resultado.territorio;
       usuario_id:currentUser?.id||null,
       usuario_email:currentUser?.email||""
     };
-    const {error:histError}=await db.from("historial_territorios").insert(h);
-    if(histError) console.error("No se pudo guardar historial:",histError);
+const { data: { session } } = await db.auth.getSession();
+
+if (!session) {
+  console.error("Sesión no válida para guardar historial.");
+} else {
+  const respuestaHistorial = await fetch(
+    "https://pmogqedfxspyudezyvwd.supabase.co/functions/v1/smooth-endpoint",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        accion: "guardar_historial",
+        historial: h
+      })
+    }
+  );
+
+  const resultadoHistorial = await respuestaHistorial.json();
+
+  if (!respuestaHistorial.ok || !resultadoHistorial.ok) {
+    console.error(
+      "No se pudo guardar historial:",
+      resultadoHistorial.mensaje || "Error desconocido"
+    );
+  }
+}
   }
 
   sel=data;
