@@ -729,8 +729,37 @@ $("save").onclick=async()=>{
     payload.estado="available";
   }
 
-  const {data,error}=await db.from("territorios").update(payload).eq("id",sel.id).select().single();
-  if(error){alert("No se pudo guardar: "+error.message);return;}
+const { data: { session } } = await db.auth.getSession();
+
+if (!session) {
+  alert("Sesión no válida.");
+  return;
+}
+
+const respuesta = await fetch(
+  "https://pmogqedfxspyudezyvwd.supabase.co/functions/v1/smooth-endpoint",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({
+      accion: "actualizar_territorio",
+      id: sel.id,
+      payload
+    })
+  }
+);
+
+const resultado = await respuesta.json();
+
+if (!respuesta.ok || !resultado.ok) {
+  alert("No se pudo guardar: " + (resultado.mensaje || "Error desconocido"));
+  return;
+}
+
+const data = resultado.territorio;
 
   const changed=
     old.date!==payload.fecha_ultima_visita ||
