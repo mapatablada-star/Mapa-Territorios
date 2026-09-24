@@ -747,7 +747,7 @@ const respuesta = await fetch(
     body: JSON.stringify({
       accion: "actualizar_territorio",
       id: sel.id,
-      payload
+      ...payload
     })
   }
 );
