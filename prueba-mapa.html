@@ -50,13 +50,40 @@ iframe{display:block;width:100%;height:calc(100% - 42px);border:0;background:#ff
       mapControls.style.gap = "6px";
       mapControls.style.flexWrap = "wrap";
 
+      legend.style.position = "relative";
+      legend.style.minHeight = "44px";
+      legend.style.paddingRight = "560px";
+
       const compactStyle = d.createElement("style");
       compactStyle.textContent = `
-        .legend .map-controls .legend-title{margin-left:8px}
+        .legend > .map-controls{
+          position:absolute!important;
+          right:0!important;
+          top:50%!important;
+          transform:translateY(-50%)!important;
+          margin:0!important;
+          padding:0!important;
+          width:auto!important;
+          max-width:none!important;
+          flex-wrap:nowrap!important;
+          justify-content:flex-end!important;
+          background:transparent!important;
+        }
+        .legend .map-controls .legend-title{margin-left:0}
         .legend .map-controls .map-switch{flex-shrink:0}
         .legend .map-controls .zoom-btn{min-width:34px}
-        @media(max-width:900px){
-          .legend .map-controls{width:100%;margin-left:0!important;justify-content:flex-end}
+        @media(max-width:1100px){
+          .legend{padding-right:0!important}
+          .legend > .map-controls{
+            position:relative!important;
+            right:auto!important;
+            top:auto!important;
+            transform:none!important;
+            width:100%!important;
+            margin-top:8px!important;
+            justify-content:flex-start!important;
+            flex-wrap:wrap!important;
+          }
         }
       `;
       d.head.appendChild(compactStyle);
