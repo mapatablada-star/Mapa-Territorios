@@ -242,7 +242,7 @@ input:focus,select:focus,textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3p
     <label for="authPassword">Contraseña</label>
     <input id="authPassword" type="password" autocomplete="current-password" placeholder="Contraseña">
     <button id="loginBtn">🔐 Ingresar</button>
-    <button id="signupBtn" class="auth-secondary">Crear cuenta</button>
+    <button id="signupBtn" class="auth-secondary" style="display:none">Crear cuenta</button>
     <div id="authMsg" class="auth-msg"></div>
   </div>
 </div>
@@ -259,6 +259,7 @@ input:focus,select:focus,textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3p
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
       <div id="currentDate" class="date-chip">📅 Cargando fecha…</div>
       <span id="connection" class="wait">🔒 Iniciar sesión</span>
+      <span id="presenceChip" class="user-chip" style="display:none">🟢 0 conectados</span>
       <span id="userChip" class="user-chip" style="display:none"></span>
     </div>
   </div>
@@ -270,7 +271,7 @@ input:focus,select:focus,textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3p
       <summary>⚙ Herramientas</summary>
       <div class="tools-pop">
         <button id="exp" class="gray">⇩ Exportar respaldo</button>
-        <label class="btn">⇧ Importar respaldo<input id="imp" type="file" accept=".json"></label>
+        <label id="importBackupLabel" class="btn">⇧ Importar respaldo<input id="imp" type="file" accept=".json"></label>
       </div>
     </details>
     <span class="spacer"></span>
@@ -355,6 +356,7 @@ input:focus,select:focus,textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3p
   <input id="person">
   <label>Observaciones</label>
   <textarea id="notes" rows="4"></textarea>
+  <div id="editLock" class="small" style="display:none;margin:8px 0;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:8px;border-radius:8px;font-weight:700"></div>
   <div id="history"></div>
   <button id="save" class="green">Guardar en la nube</button>
   <div class="small" style="margin:8px 0;color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:8px;border-radius:8px">La eliminación de territorios está protegida y no se realiza desde la página compartida.</div>
@@ -367,7 +369,7 @@ const SUPABASE_URL = "https://pmogqedfxspyudezyvwd.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_R7l--WOCCApJXF6AtGRCOA_qdBbPfOD";
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-let ts=[], sel=null, channel=null, drawing=false, vertices=[], currentUser=null, authReady=false;
+let ts=[], sel=null, channel=null, presenceChannel=null, drawing=false, vertices=[], currentUser=null, authReady=false, currentRole=null, currentName=null, presenceUsers=[];
 const $=id=>document.getElementById(id);
 
 /* Territorios registrados plegable: cerrado por defecto para liberar espacio visual. */
@@ -496,11 +498,90 @@ function showAuthMessage(msg,bad=false){const el=$("authMsg");el.textContent=msg
 function setAppVisible(visible){$("authGate").style.display=visible?"none":"flex";document.body.style.overflow=visible?"":"hidden";}
 async function doLogin(){const email=$("authEmail").value.trim();const password=$("authPassword").value;if(!email||!password){showAuthMessage("Completá correo y contraseña.",true);return;}showAuthMessage("Ingresando…");const {data,error}=await db.auth.signInWithPassword({email,password});if(error){showAuthMessage("No se pudo ingresar: "+error.message,true);return;}currentUser=data.user;await afterAuth();}
 async function doSignup(){const email=$("authEmail").value.trim();const password=$("authPassword").value;if(!email||password.length<6){showAuthMessage("Usá un correo válido y una contraseña de al menos 6 caracteres.",true);return;}showAuthMessage("Creando cuenta…");const {data,error}=await db.auth.signUp({email,password});if(error){showAuthMessage("No se pudo crear la cuenta: "+error.message,true);return;}if(data.session){currentUser=data.user;await afterAuth();}else{showAuthMessage("Cuenta creada. Revisá tu correo para confirmar la cuenta y después ingresá.");}}
-async function doLogout(){if(channel){try{await db.removeChannel(channel)}catch(e){}channel=null;}await db.auth.signOut();currentUser=null;authReady=false;ts=[];sel=null;$("userChip").style.display="none";setConnection("🔒 Sesión cerrada","wait");setAppVisible(false);}
-async function afterAuth(){authReady=true;setAppVisible(true);$("userChip").innerHTML=`👤 ${esc(currentUser?.email||"Usuario")} <button id="logoutBtn" title="Cerrar sesión">Salir</button>`;$("userChip").style.display="inline-flex";$("logoutBtn").onclick=doLogout;setConnection("⏳ Sincronizando…","wait");await loadTerritories();startRealtime();}
+async function doLogout(){if(presenceChannel){try{await presenceChannel.untrack();await db.removeChannel(presenceChannel)}catch(e){}presenceChannel=null;}if(channel){try{await db.removeChannel(channel)}catch(e){}channel=null;}await db.auth.signOut();currentUser=null;currentRole=null;currentName=null;authReady=false;ts=[];sel=null;$("userChip").style.display="none";setConnection("🔒 Sesión cerrada","wait");setAppVisible(false);}
+async function loadCurrentRole(){
+  currentRole=null;
+  if(!currentUser)return null;
+  const {data,error}=await db.from("usuarios_autorizados").select("nombre,rol,activo").eq("id",currentUser.id).maybeSingle();
+  if(error){console.error("No se pudo cargar el rol",error);return null;}
+  if(data?.activo){ currentRole=data.rol||"usuario"; currentName=data.nombre||currentUser?.email||"Usuario"; }
+  return currentRole;
+}
+function applyRoleUI(){
+  const isAdmin=currentRole==="admin";
+  const isReader=currentRole==="lector";
+  if($("edit")) $("edit").style.display=isAdmin?"":"none";
+  if($("finish")) $("finish").style.display="none";
+  if($("redraw")) $("redraw").style.display=isAdmin?"":"none";
+  if($("importBackupLabel")) $("importBackupLabel").style.display=isAdmin?"":"none";
+  if($("num")) $("num").disabled=!isAdmin;
+  if($("blocks")) $("blocks").disabled=!isAdmin;
+  for(const id of ["status","date","assignedTo","person","notes"]){if($(id)) $(id).disabled=isReader;}
+  if($("save")) $("save").style.display=isReader?"none":"";
+  applyTerritoryLock();
+}
+async function afterAuth(){authReady=true;await loadCurrentRole();setAppVisible(true);applyRoleUI();$("userChip").innerHTML=`👤 ${esc(currentUser?.email||"Usuario")} · ${esc(currentRole||"sin rol")} <button id="logoutBtn" title="Cerrar sesión">Salir</button>`;$("userChip").style.display="inline-flex";$("logoutBtn").onclick=doLogout;setConnection("⏳ Sincronizando…","wait");await loadTerritories();startRealtime();startPresence();}
 $("loginBtn").onclick=doLogin;$("signupBtn").onclick=doSignup;$("authPassword").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin();});
 async function initAuth(){const {data}=await db.auth.getSession();if(data?.session){currentUser=data.session.user;await afterAuth();}else{setAppVisible(false);setConnection("🔒 Iniciar sesión","wait");}db.auth.onAuthStateChange((_event,session)=>{if(session&&!authReady){currentUser=session.user;setTimeout(()=>afterAuth(),0);}if(!session){authReady=false;currentUser=null;setTimeout(()=>setAppVisible(false),0);}});}
 
+function getPresenceEntries(){
+  if(!presenceChannel)return [];
+  const state=presenceChannel.presenceState()||{};
+  return Object.values(state).flat().filter(Boolean);
+}
+function renderPresence(){
+  presenceUsers=getPresenceEntries();
+  const unique=new Map();
+  for(const u of presenceUsers){ if(u.user_id) unique.set(u.user_id,u); }
+  const users=[...unique.values()];
+  const chip=$("presenceChip");
+  if(chip){
+    chip.style.display="inline-flex";
+    const names=users.map(u=>esc(u.nombre||"Usuario")).join(" · ");
+    chip.innerHTML=`🟢 ${users.length} conectado${users.length===1?"":"s"}${names?` — ${names}`:""}`;
+  }
+  applyTerritoryLock();
+}
+function otherEditorFor(id){
+  if(!id)return null;
+  return presenceUsers.find(u=>String(u.user_id)!==String(currentUser?.id) && String(u.editing_territory||"")===String(id))||null;
+}
+function applyTerritoryLock(){
+  if(!sel)return;
+  const other=otherEditorFor(sel.id);
+  const locked=!!other;
+  const lock=$("editLock");
+  if(lock){
+    lock.style.display=locked?"block":"none";
+    lock.textContent=locked?`🟡 ${other.nombre||"Otro usuario"} está editando este territorio. Podés verlo, pero esperá a que termine para modificarlo.`:"";
+  }
+  const isReader=currentRole==="lector";
+  for(const id of ["status","date","assignedTo","person","notes"]){if($(id)) $(id).disabled=isReader||locked;}
+  if($("save")){ $("save").disabled=locked; $("save").style.display=isReader?"none":""; }
+  if($("redraw")) $("redraw").disabled=locked;
+}
+async function trackEditingTerritory(id=null){
+  if(!presenceChannel||!currentUser)return;
+  try{
+    await presenceChannel.track({
+      user_id:currentUser.id,
+      nombre:currentName||currentUser.email||"Usuario",
+      rol:currentRole||"",
+      editing_territory:(currentRole==="lector"?null:id),
+      online_at:new Date().toISOString()
+    });
+  }catch(e){console.warn("No se pudo actualizar presencia",e);}
+}
+function startPresence(){
+  if(presenceChannel||!currentUser)return;
+  presenceChannel=db.channel("territorios-presencia",{config:{presence:{key:currentUser.id}}})
+    .on("presence",{event:"sync"},renderPresence)
+    .on("presence",{event:"join"},renderPresence)
+    .on("presence",{event:"leave"},renderPresence)
+    .subscribe(async status=>{
+      if(status==="SUBSCRIBED") await trackEditingTerritory(sel?.id||null);
+    });
+}
 function statusName(s){
   return {
     available:"🟢 Disponible",
@@ -685,7 +766,10 @@ function openPanel(t){
   $("person").value=t.persona||"";
   $("notes").value=t.observaciones||"";
   $("history").innerHTML="<hr><b>Últimos 4 cambios</b><div class='small'>Cargando...</div>";
+  applyRoleUI();
   $("panel").classList.add("show");
+  trackEditingTerritory(t.id);
+  applyTerritoryLock();
   loadHistory(t.id);
 }
 
@@ -703,7 +787,7 @@ async function loadHistory(id){
     : "<hr><b>Últimos 4 cambios</b><br><span class='small'>Todavía no hay cambios registrados.</span>";
 }
 
-$("close").onclick=()=>$("panel").classList.remove("show");
+$("close").onclick=()=>{ $("panel").classList.remove("show"); trackEditingTerritory(null); };
 
 function drawPreview(){
   $("areas").querySelectorAll(".preview").forEach(n=>n.remove());
@@ -793,6 +877,7 @@ const data = resultado.territorio;
   await loadTerritories();openPanel(data);
 }
 $("edit").onclick=()=>{
+  if(currentRole!=="admin"){alert("Solo el administrador puede crear o editar áreas.");return;}
   if(drawing){cancelDrawing();return;}
   startDrawing();
 };
@@ -810,6 +895,7 @@ $("box").onclick=e=>{
 };
 
 $("redraw").onclick=async()=>{
+  if(currentRole!=="admin"){alert("Solo el administrador puede modificar la posición o el área.");return;}
   if(!sel)return;
   const t=sel;
   $("panel").classList.remove("show");
@@ -861,7 +947,19 @@ const data = resultado.territorio;
 
 $("save").onclick=async()=>{
   if(!currentUser){alert("Necesitás iniciar sesión.");return;}
+  if(currentRole==="lector"){alert("Este usuario es de solo lectura.");return;}
   if(!sel)return;
+  const editor=otherEditorFor(sel.id);
+  if(editor){alert(`${editor.nombre||"Otro usuario"} está editando este territorio. Esperá a que termine.`);return;}
+  const {data:fresh,error:freshError}=await db.from("territorios").select("*").eq("id",sel.id).single();
+  if(freshError){alert("No se pudo verificar si el territorio cambió. Probá nuevamente.");return;}
+  if(String(fresh.updated_at||"")!==String(sel.updated_at||"")){
+    alert("Este territorio cambió mientras lo tenías abierto. Se cargará la versión más reciente para evitar pisar el cambio de otro usuario.");
+    await loadTerritories();
+    const latest=ts.find(t=>String(t.id)===String(sel.id))||fresh;
+    openPanel(latest);
+    return;
+  }
   const old={
     date:sel.fecha_ultima_visita,
     status:effectiveState(sel),
@@ -869,7 +967,7 @@ $("save").onclick=async()=>{
     person:sel.persona||"",
     notes:sel.observaciones||""
   };
-  const numero=$("num").value.trim()||String(sel.numero);
+  const numero=currentRole==="admin" ? ($("num").value.trim()||String(sel.numero)) : String(sel.numero);
   const requestedStatus=$("status").value;
   const date=$("date").value||null;
 
@@ -880,7 +978,7 @@ $("save").onclick=async()=>{
 
   const payload={
     numero,
-    manzanas:Math.max(1,Number($("blocks").value)||1),
+    manzanas:currentRole==="admin" ? Math.max(1,Number($("blocks").value)||1) : Math.max(1,Number(sel.manzanas)||1),
     estado:requestedStatus,
     fecha_ultima_visita:finalDate,
     asignado_a:$("assignedTo").value.trim(),
@@ -987,6 +1085,7 @@ $("exp").onclick=async()=>{
 };
 
 $("imp").onchange=e=>{
+  if(currentRole!=="admin"){alert("Solo el administrador puede importar respaldos.");e.target.value="";return;}
   if(!currentUser){
     alert("Primero iniciá sesión.");
     e.target.value="";
