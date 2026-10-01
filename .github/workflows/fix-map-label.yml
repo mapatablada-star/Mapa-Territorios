@@ -1,0 +1,41 @@
+name: Fix map selector label
+
+on:
+  push:
+    paths:
+      - ".github/workflows/fix-map-label.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix-label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Change HD label to Blanco y negro
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("index.html")
+          s = p.read_text(encoding="utf-8")
+          old = '<button id="mapHdBtn" type="button">HD</button>'
+          new = '<button id="mapHdBtn" type="button">Blanco y negro</button>'
+          if old not in s:
+              print("Target label not found; no change needed.")
+              raise SystemExit(0)
+          p.write_text(s.replace(old, new, 1), encoding="utf-8")
+          PY
+
+      - name: Commit and push
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Cambiar HD a Blanco y negro"
+          git push
