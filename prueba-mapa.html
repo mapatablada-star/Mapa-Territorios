@@ -32,6 +32,36 @@ iframe{display:block;width:100%;height:calc(100% - 42px);border:0;background:#ff
 
     if(hdBtn) hdBtn.textContent = "Blanco y negro";
 
+    // Colocar los controles del mapa junto a la leyenda de estados.
+    const legend = d.querySelector(".legend");
+    const mapControls = d.querySelector(".map-controls");
+    if(legend && mapControls){
+      legend.appendChild(mapControls);
+      legend.style.display = "flex";
+      legend.style.alignItems = "center";
+      legend.style.gap = "8px";
+      legend.style.flexWrap = "wrap";
+
+      mapControls.style.margin = "0 0 0 auto";
+      mapControls.style.padding = "0";
+      mapControls.style.maxWidth = "none";
+      mapControls.style.display = "flex";
+      mapControls.style.alignItems = "center";
+      mapControls.style.gap = "6px";
+      mapControls.style.flexWrap = "wrap";
+
+      const compactStyle = d.createElement("style");
+      compactStyle.textContent = `
+        .legend .map-controls .legend-title{margin-left:8px}
+        .legend .map-controls .map-switch{flex-shrink:0}
+        .legend .map-controls .zoom-btn{min-width:34px}
+        @media(max-width:900px){
+          .legend .map-controls{width:100%;margin-left:0!important;justify-content:flex-end}
+        }
+      `;
+      d.head.appendChild(compactStyle);
+    }
+
     let zoom = 1;
     let baseWidth = 0;
 
