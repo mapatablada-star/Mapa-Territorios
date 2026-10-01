@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prueba de mapa — Gestor de Territorios</title>
+<style>
+html,body{margin:0;height:100%;background:#eef2f7;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+#bar{height:42px;display:flex;align-items:center;gap:10px;padding:0 12px;background:#172033;color:#fff;font-size:13px;font-weight:700;box-sizing:border-box}
+#bar span{opacity:.85;font-weight:500}
+iframe{display:block;width:100%;height:calc(100% - 42px);border:0;background:#fff}
+</style>
+</head>
+<body>
+<div id="bar">🧪 Prueba de mapa <span>Vista completa al entrar · zoom hasta 400% · no modifica la página definitiva</span></div>
+<iframe id="app" src="./index.html?prueba-mapa=1"></iframe>
+<script>
+(() => {
+  const frame = document.getElementById("app");
+
+  function install(){
+    let w, d;
+    try { w = frame.contentWindow; d = frame.contentDocument; } catch(e){ return; }
+    if(!d || d.__zoomTestInstalled) return;
+    d.__zoomTestInstalled = true;
+
+    const $ = id => d.getElementById(id);
+    const area = $("area"), box = $("box"), img = $("map");
+    const zoomIn = $("zoomIn"), zoomOut = $("zoomOut"), zoomReset = $("zoomReset"), zoomLabel = $("zoomLabel");
+    const colorBtn = $("mapColorBtn"), hdBtn = $("mapHdBtn");
+    if(!area || !box || !img || !zoomIn || !zoomOut || !zoomReset || !zoomLabel) return;
+
+    if(hdBtn) hdBtn.textContent = "Blanco y negro";
+
+    let zoom = 1;
+    let baseWidth = 0;
+
+    function center(){
+      return {
+        x:(area.scrollLeft + area.clientWidth/2) / Math.max(1, area.scrollWidth),
+        y:(area.scrollTop + area.clientHeight/2) / Math.max(1, area.scrollHeight)
+      };
+    }
+
+    function geometry(){
+      if(!img.naturalWidth || !img.naturalHeight) return;
+      const aw = Math.max(280, area.clientWidth - 36);
+      const ah = Math.max(260, (area.clientHeight || Math.round(w.innerHeight*.78)) - 36);
+      const aspect = img.naturalHeight / img.naturalWidth;
+      baseWidth = Math.min(aw, ah/aspect, img.naturalWidth);
+      const width = Math.round(baseWidth * zoom);
+      const height = Math.round(width * aspect);
+      box.style.width = width + "px";
+      box.style.height = height + "px";
+      img.style.width = width + "px";
+      img.style.height = height + "px";
+      const areas = $("areas"), points = $("points");
+      if(areas){ areas.style.width = width + "px"; areas.style.height = height + "px"; }
+      if(points){ points.style.width = width + "px"; points.style.height = height + "px"; }
+      area.classList.toggle("pan-ready", zoom > 1);
+    }
+
+    function apply(next, c){
+      zoom = Math.max(1, Math.min(4, next));
+      geometry();
+      zoomLabel.textContent = Math.round(zoom*100) + "%";
+      w.requestAnimationFrame(() => {
+        if(c){
+          area.scrollLeft = c.x * area.scrollWidth - area.clientWidth/2;
+          area.scrollTop = c.y * area.scrollHeight - area.clientHeight/2;
+        }
+      });
+    }
+
+    function fit(){
+      zoom = 1;
+      geometry();
+      zoomLabel.textContent = "100%";
+      area.scrollTo({left:0,top:0});
+    }
+
+    zoomIn.onclick = e => { e.preventDefault(); e.stopPropagation(); apply(zoom + .5, center()); };
+    zoomOut.onclick = e => { e.preventDefault(); e.stopPropagation(); apply(zoom - .5, center()); };
+    zoomReset.onclick = e => { e.preventDefault(); e.stopPropagation(); fit(); };
+
+    area.addEventListener("wheel", e => {
+      if(!e.ctrlKey) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      apply(zoom + (e.deltaY < 0 ? .25 : -.25), center());
+    }, {passive:false, capture:true});
+
+    const refit = () => setTimeout(fit, 100);
+    if(img.complete && img.naturalWidth) refit();
+    else img.addEventListener("load", refit);
+
+    const gate = $("authGate");
+    if(gate){
+      new MutationObserver(() => {
+        const hidden = gate.style.display === "none" || getComputedStyle(gate).display === "none";
+        if(hidden) setTimeout(fit, 180);
+      }).observe(gate,{attributes:true,attributeFilter:["style","class"]});
+    }
+
+    w.addEventListener("resize", fit);
+    setTimeout(fit, 700);
+  }
+
+  frame.addEventListener("load", () => {
+    setTimeout(install, 150);
+    setTimeout(install, 1000);
+  });
+})();
+</script>
+</body>
+</html>
