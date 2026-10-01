@@ -1075,6 +1075,76 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
       d.head.appendChild(assignmentLogic);
     }
 
+
+    // Cierre de sesión rápido: el login aparece inmediatamente y la limpieza termina en segundo plano.
+    const fastLogoutLogic = d.createElement("script");
+    fastLogoutLogic.textContent = `
+(function(){
+  if (window.__fastLogoutPatch) return;
+  window.__fastLogoutPatch = true;
+
+  doLogout = function(){
+    const oldPresence = presenceChannel;
+    const oldRealtime = channel;
+
+    // Iniciar el cierre de Supabase inmediatamente, sin bloquear la interfaz.
+    const signOutPromise = db.auth.signOut().catch(function(err){
+      console.warn("No se pudo completar el cierre remoto de sesión:", err);
+    });
+
+    // Estado local: se limpia al instante.
+    presenceChannel = null;
+    channel = null;
+    currentUser = null;
+    currentRole = null;
+    currentName = null;
+    authReady = false;
+    ts = [];
+    sel = null;
+    presenceUsers = [];
+
+    const userChip = document.getElementById("userChip");
+    if (userChip) userChip.style.display = "none";
+
+    const presenceChip = document.getElementById("presenceChip");
+    if (presenceChip) presenceChip.style.display = "none";
+
+    const panel = document.getElementById("panel");
+    if (panel) panel.classList.remove("show");
+
+    showAuthMessage("");
+    setConnection("🔒 Sesión cerrada","wait");
+    setAppVisible(false);
+
+    // Presencia y canales se cierran después, sin hacer esperar al usuario.
+    Promise.allSettled([
+      signOutPromise,
+      (async function(){
+        if (!oldPresence) return;
+        try { await oldPresence.untrack(); } catch(e) {}
+        try { await db.removeChannel(oldPresence); } catch(e) {}
+      })(),
+      (async function(){
+        if (!oldRealtime) return;
+        try { await db.removeChannel(oldRealtime); } catch(e) {}
+      })()
+    ]);
+  };
+
+  const bindFastLogout = function(){
+    const btn = document.getElementById("logoutBtn");
+    if (btn) btn.onclick = doLogout;
+  };
+
+  bindFastLogout();
+  const chip = document.getElementById("userChip");
+  if (chip) {
+    new MutationObserver(bindFastLogout).observe(chip,{childList:true,subtree:true});
+  }
+})();
+`;
+    d.head.appendChild(fastLogoutLogic);
+
     let zoom = 1;
     let baseWidth = 0;
 
