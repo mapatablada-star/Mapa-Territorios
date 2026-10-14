@@ -175,14 +175,6 @@ begin
    values(p_territorio_id,v_anterior.id,'quitar',to_jsonb(v_anterior),(select auth.uid()));
    delete from public.territorio_partes where id=v_anterior.id;
  end loop;
- -- Conservar los últimos cuatro eventos por parte, incluidos los de partes retiradas.
- delete from public.historial_partes h
- where h.territorio_id=p_territorio_id and h.id in (
-  select id from (
-   select id,row_number() over(partition by parte_id order by id desc) as n
-   from public.historial_partes where territorio_id=p_territorio_id
-  ) x where x.n>4
- );
  return query select * from public.territorio_partes
      where territorio_id=p_territorio_id order by orden,id;
 end;
