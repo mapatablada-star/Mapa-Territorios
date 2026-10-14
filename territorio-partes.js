@@ -7,7 +7,7 @@ const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const names={available:"Disponible",assigned:"Asignado",done:"Recién completado"};
 const colors={available:"#22a06b",assigned:"#3b82f6",done:"#e27474"};
 const ABC="ABCDEFGHIJKLMNÑOPQRSTUVWXYZ",store=new Map();
-let ready=false,draft=null,dirty=false,active=null,refreshing=false;
+let ready=false,draft=null,dirty=false,active=null,refreshing=false,originalSnapshot=[];
 const rows=id=>store.get(String(id))||[];
 const writable=()=>currentUser&&["admin","usuario"].includes(currentRole)&&
   !(typeof otherEditorFor==="function"&&sel&&otherEditorFor(sel.id));
@@ -188,7 +188,7 @@ async function history(id){
 }
 function show(){
  if(!sel||!ready)return;active=sel.id;
- draft=rows(sel.id).length?rows(sel.id).map(clean):null;dirty=false;
+ draft=rows(sel.id).length?rows(sel.id).map(clean):null;dirty=false;originalSnapshot=snap(rows(sel.id));
  toggle(!!draft);if(draft){cards();history(sel.id);}
 }
 const originalOpen=openPanel;
@@ -217,7 +217,7 @@ function validation(){
 }
 async function persist(id,list){
  const {error}=await db.rpc("guardar_territorio_partes",{
-  p_territorio_id:+id,p_expected:snap(rows(id)),
+  p_territorio_id:+id,p_expected:originalSnapshot,
   p_partes:list.map(p=>({id:p.id||null,manzanas:p.manzanas?.trim().toUpperCase(),
    estado:p.estado,fecha_asignacion:p.fecha_asignacion||null,
    fecha_ultima_visita:p.fecha_ultima_visita||null,asignado_a:p.asignado_a,
@@ -262,6 +262,8 @@ if(typeof startRealtime==="function"){
  };
 }
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&currentUser&&!dirty)reload();});
+e("filter")?.addEventListener("input",()=>{if(ready)redraw();});
+if(currentUser)reload();
 const indicator=document.createElement("div");indicator.id="partialCount";
 document.querySelector(".dashboard")?.after(indicator);
 })();
