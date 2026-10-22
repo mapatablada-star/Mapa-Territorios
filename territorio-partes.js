@@ -12,17 +12,35 @@ const rows=id=>store.get(String(id))||[];
 const writable=()=>currentUser&&["admin","usuario"].includes(currentRole)&&
   !(typeof otherEditorFor==="function"&&sel&&otherEditorFor(sel.id));
 const snap=a=>a.map(p=>({id:+p.id,version:+p.version})).sort((x,y)=>x.id-y.id);
+// Permite letras individuales, grupos no consecutivos y nombres como A1 o A4.
 function expand(value){
- const s=String(value||"").toUpperCase().replace(/\s+/g,"");
- if(!/^[A-ZÑ](-[A-ZÑ])?(,[A-ZÑ](-[A-ZÑ])?)*$/.test(s))return null;
- let result=[];
- for(const item of s.split(",")){
-  let v=item.split("-"),from=ABC.indexOf(v[0]),to=ABC.indexOf(v[v.length-1]);
-  if(from<0||to<from)return null;
-  for(let n=from;n<=to;n++){if(result.includes(ABC[n]))return null;result.push(ABC[n]);}
+ const raw=String(value||"").toUpperCase().replace(/\s+/g,"");
+ if(!raw)return null;
+ const result=[];
+ for(const group of raw.split(",")){
+  const v=group.split("-");
+  if(v.length<1||v.length>2||v.some(x=>!/^[A-ZÑ]+[0-9]*$/.test(x)))return null;
+  let labels=[];
+  if(v.length===1){labels=[v[0]];}
+  else if(/^[A-ZÑ]$/.test(v[0])&&/^[A-ZÑ]$/.test(v[1])){
+   const from=ABC.indexOf(v[0]),to=ABC.indexOf(v[1]);
+   if(from<0||to<from)return null;
+   labels=[...ABC.slice(from,to+1)];
+  }else{
+   const start=v[0].match(/^([A-ZÑ]+)([0-9]+)$/);
+   const end=v[1].match(/^([A-ZÑ]+)([0-9]+)$/);
+   if(!start||!end||start[1]!==end[1])return null;
+   const from=Number(start[2]),to=Number(end[2]);
+   if(!Number.isSafeInteger(from)||!Number.isSafeInteger(to)||to<from||to-from>26)return null;
+   labels=Array.from({length:to-from+1},(_,i)=>start[1]+(from+i));
+  }
+  for(const label of labels){if(result.includes(label))return null;result.push(label);}
+  if(result.length>27)return null;
  }
  return result;
 }
+function totalBlocks(){return Math.max(1,Math.min(27,Number(sel?.manzanas)||1));}
+function selectableLabels(){return [...ABC].slice(0,totalBlocks());}
 function state(p){
  return p.estado==="done"&&daysSince(p.fecha_ultima_visita)>=28?"available":p.estado||"available";
 }
@@ -113,6 +131,12 @@ style.textContent=[
  "#panel .part-card label{margin-top:6px}",
  "#panel .part-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}",
  "#panel .part-actions{display:flex;flex-wrap:wrap;gap:6px}",
+ "#panel .part-chips{display:flex;flex-wrap:wrap;gap:6px;margin:7px 0 9px}",
+ "#panel .part-chip{display:inline-flex;align-items:center;gap:5px;margin:0;padding:6px 10px;border:1px solid #b8cee2;background:#fff;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;user-select:none}",
+ "#panel .part-chip:has(input:checked){border-color:#3282e6;background:#e5f1ff;color:#154a81}",
+ "#panel .part-chip:has(input:disabled){opacity:.38;cursor:not-allowed}",
+ "#panel .part-chip input{width:auto!important;margin:0;box-shadow:none!important;accent-color:#2d7fe0}",
+ "#panel .part-hint{font-size:12px;color:#526881;line-height:1.5}",
  "#panel .part-actions button{flex:1 1 130px;padding:9px 5px}",
  "#partSave{background:#22a06b;color:#fff}",
  "#partAdd{background:#3b82f6;color:#fff}",
@@ -136,8 +160,9 @@ const start=document.createElement("button");start.id="startPartial";
 start.type="button";start.hidden=true;start.textContent="＋ Dividir territorio por manzanas";
 notes.after(start);
 const region=document.createElement("section");region.id="partRegion";region.hidden=true;
-region.innerHTML='<p class="small">Cada parte tiene su propio estado, fechas y observaciones. '+
- 'Indicá las letras de las manzanas sin repetirlas.</p><div id="partCards"></div>'+
+region.innerHTML='<p class="small">Elegí qué manzanas pertenecen a cada parte. '+
+ 'Cada una tendrá su propio estado, fechas y observaciones. '+
+ 'También podés escribir identificadores como A1,A4 o rangos como A-C.</p><div id="partCards"></div>'+
  '<div class="part-actions"><button type="button" id="partAdd">＋ Agregar parte</button>'+
  '<button type="button" id="partSave">Guardar partes</button>'+
  '<button type="button" id="partUndo">Volver a estado único</button></div>'+
@@ -151,7 +176,7 @@ function toggle(split){
  });
  save.style.display=split?"none":(currentRole==="lector"?"none":"");
  if(e("history"))e("history").style.display=split?"none":"";
- start.hidden=split||!ready||!writable();
+ start.hidden=split||!ready||!writable()||totalBlocks()<2;
  if(sel)start.style.setProperty("--part-action-color",colors[effectiveState(sel)]||colors.available);
  region.hidden=!split;
 }
@@ -163,10 +188,21 @@ const clean=p=>({
 function notice(t,bad=true){const x=e("partNotice");if(x){x.textContent=t||"";x.style.color=bad?"#b91c1c":"#166534";}}
 function cards(){
  const box=e("partCards");if(!draft||!box)return;
+ const all=selectableLabels(),reserved=new Map();
+ draft.forEach((p,i)=>(expand(p.manzanas)||[]).forEach(l=>reserved.set(l,i)));
  box.innerHTML=draft.map((p,i)=>{
-  let opts=Object.entries(names).map(([v,n])=>'<option value="'+v+'"'+(p.estado===v?" selected":"")+">"+n+"</option>").join("");
+  const opts=Object.entries(names).map(([v,n])=>'<option value="'+v+'"'+(p.estado===v?" selected":"")+">"+n+"</option>").join("");
+  const selected=expand(p.manzanas)||[];
+  const chips=all.map(letter=>{
+   const blocked=reserved.has(letter)&&reserved.get(letter)!==i;
+   return '<label class="part-chip" title="'+(blocked?'Asignada en otra parte':'Manzana '+letter)+'">'+
+    '<input type="checkbox" data-letter="'+letter+'"'+(selected.includes(letter)?" checked":"")+
+    (blocked||!writable()?" disabled":"")+'>'+letter+'</label>';
+  }).join("");
   return '<div class="part-card" data-index="'+i+'"><h3>Parte '+(i+1)+' — '+esc(p.manzanas||"sin definir")+'</h3>'+
-   '<label>Manzanas (ej.: A-B o C,D)</label><input data-key="manzanas" maxlength="90" value="'+esc(p.manzanas)+'">'+
+   '<label>Seleccioná las manzanas de esta parte</label><div class="part-chips">'+chips+'</div>'+
+   '<label>O escribí las manzanas (ej.: A,C,E o A1,A4)</label><input data-key="manzanas" maxlength="90" value="'+esc(p.manzanas)+'">'+
+   '<div class="part-hint">Podés combinar manzanas separadas, no solamente manzanas consecutivas.</div>'+
    '<label>Estado</label><select data-key="estado">'+opts+'</select>'+
    '<div class="part-grid"><div><label>Fecha de asignación</label><input type="date" data-key="fecha_asignacion" value="'+esc(p.fecha_asignacion)+'"></div>'+
    '<div><label>Fecha de visita</label><input type="date" data-key="fecha_ultima_visita" value="'+esc(p.fecha_ultima_visita)+'"></div></div>'+
@@ -177,8 +213,9 @@ function cards(){
  }).join("");
  const permitted=!!writable();
  box.querySelectorAll("[data-key]").forEach(input=>{
-  input.disabled=!permitted;input.oninput=()=>{
-   let i=+input.closest(".part-card").dataset.index,key=input.dataset.key;
+  input.disabled=!permitted;
+  input.oninput=()=>{
+   const i=+input.closest(".part-card").dataset.index,key=input.dataset.key;
    draft[i][key]=input.value;dirty=true;notice("");
    if(key==="manzanas")input.closest(".part-card").querySelector("h3").textContent=
      "Parte "+(i+1)+" — "+(input.value||"sin definir");
@@ -187,11 +224,23 @@ function cards(){
     input.closest(".part-card").querySelector('[data-key="fecha_ultima_visita"]').value="";
    }
   };
+  if(input.dataset.key==="manzanas")input.onchange=()=>cards();
+ });
+ box.querySelectorAll("[data-letter]").forEach(input=>{
+  input.onchange=()=>{
+   const i=+input.closest(".part-card").dataset.index,letter=input.dataset.letter;
+   const labels=expand(draft[i].manzanas);
+   if(!labels){notice("Corregí el texto de las manzanas antes de usar las casillas.");cards();return;}
+   const next=labels.filter(l=>l!==letter);
+   if(input.checked)next.push(letter);
+   draft[i].manzanas=next.join(",");
+   dirty=true;notice("");cards();
+  };
  });
  box.querySelectorAll("[data-remove]").forEach(btn=>{
   btn.disabled=!permitted;btn.onclick=()=>{draft.splice(+btn.dataset.remove,1);dirty=true;cards();};
  });
- e("partAdd").disabled=!permitted||draft.length>=27;
+ e("partAdd").disabled=!permitted||draft.length>=totalBlocks();
  e("partSave").disabled=!permitted;
  e("partUndo").disabled=!permitted;
  e("partUndo").textContent=rows(active).length?"Volver a estado único":"Cancelar división";
@@ -214,36 +263,42 @@ function show(){
 const originalOpen=openPanel;
 openPanel=function(t){originalOpen(t);active=t.id;if(ready)show();else toggle(false);};
 start.onclick=()=>{
- if(!sel||!writable())return;
+ if(!sel||!writable()||totalBlocks()<2)return;
  active=sel.id;
- draft=[clean({...sel,id:null,manzanas:""}),clean({estado:"available"})];
- dirty=true;toggle(true);cards();notice("Indicá las manzanas de ambas partes y guardá.",false);
+ const letters=selectableLabels();
+ draft=[clean({...sel,id:null,manzanas:letters.slice(0,-1).join(",")}),
+        clean({estado:"available",manzanas:letters[letters.length-1]})];
+ dirty=true;toggle(true);cards();
+ notice("Se prepararon dos partes como ejemplo. Podés marcar o desmarcar las manzanas, cambiar sus estados y agregar más partes.",false);
 };
 e("partAdd").onclick=()=>{
- if(!draft||draft.length>=27||!writable())return;
+ if(!draft||draft.length>=totalBlocks()||!writable())return;
  draft.push(clean({estado:"available"}));dirty=true;cards();
 };
 function validation(){
- if(!draft||draft.length<2||draft.length>27)return "Se necesitan entre 2 y 27 partes.";
+ if(!draft||draft.length<2||draft.length>totalBlocks())
+  return "Se necesitan entre 2 y "+totalBlocks()+" partes para este territorio.";
  const used=new Set();
  for(let i=0;i<draft.length;i++){
   const p=draft[i],labels=expand(p.manzanas);
-  if(!labels)return "Revisá las manzanas de la parte "+(i+1)+". Ejemplo: A-B o C,D.";
-  for(const letter of labels){if(used.has(letter))return "La manzana "+letter+" está repetida.";used.add(letter);}
+  if(!labels)return "Revisá las manzanas de la parte "+(i+1)+". Ejemplos: A-C, A,D o A1,A4.";
+  for(const letter of labels){
+   if(used.has(letter))return "La manzana "+letter+" está repetida en dos partes.";
+   used.add(letter);
+  }
   if(p.fecha_asignacion&&p.fecha_ultima_visita&&p.fecha_ultima_visita<p.fecha_asignacion)
-    return "La visita no puede ser anterior a la asignación (parte "+(i+1)+").";
+   return "La visita no puede ser anterior a la asignación (parte "+(i+1)+").";
+ }
+ if(used.size!==totalBlocks())
+  return "Este territorio tiene "+totalBlocks()+" manzanas. Distribuí las "+totalBlocks()+
+   " entre las partes (ahora hay "+used.size+").";
+ const expected=selectableLabels();
+ if([...used].every(x=>/^[A-ZÑ]$/.test(x))){
+  const missing=expected.filter(x=>!used.has(x));
+  if(missing.length)return "Faltan las manzanas "+missing.join(",")+
+   ". Revisá los datos antes de guardar.";
  }
  return null;
-}
-async function persist(id,list){
- const {error}=await db.rpc("guardar_territorio_partes",{
-  p_territorio_id:+id,p_expected:originalSnapshot,
-  p_partes:list.map(p=>({id:p.id||null,manzanas:p.manzanas?.trim().toUpperCase(),
-   estado:p.estado,fecha_asignacion:p.fecha_asignacion||null,
-   fecha_ultima_visita:p.fecha_ultima_visita||null,asignado_a:p.asignado_a,
-   persona:p.persona,observaciones:p.observaciones}))
- });if(error)throw error;
- await reload();
 }
 e("partSave").onclick=async()=>{
  if(!sel||!draft||!writable())return;
