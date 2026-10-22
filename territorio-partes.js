@@ -137,6 +137,9 @@ style.textContent=[
  "#panel .part-chip:has(input:disabled){opacity:.38;cursor:not-allowed}",
  "#panel .part-chip input{width:auto!important;margin:0;box-shadow:none!important;accent-color:#2d7fe0}",
  "#panel .part-hint{font-size:12px;color:#526881;line-height:1.5}",
+ "#panel .part-copy,#panel .normal-copy{background:#e7f1ff!important;color:#1a4d80!important;border:1px solid #b8d2ed!important;font-size:12px;font-weight:700;padding:7px 10px;margin:5px 0 10px;min-height:34px;max-width:100%;white-space:normal}",
+ "#panel .part-copy:disabled,#panel .normal-copy:disabled{opacity:.45;cursor:not-allowed}",
+ "#panel .normal-copy[hidden]{display:none!important}",
  "#panel .part-actions button{flex:1 1 130px;padding:9px 5px}",
  "#partSave{background:#22a06b;color:#fff}",
  "#partAdd{background:#3b82f6;color:#fff}",
@@ -162,19 +165,39 @@ notes.after(start);
 const region=document.createElement("section");region.id="partRegion";region.hidden=true;
 region.innerHTML='<p class="small">Elegí qué manzanas pertenecen a cada parte. '+
  'Cada una tendrá su propio estado, fechas y observaciones. '+
- 'También podés escribir identificadores como A1,A4 o rangos como A-C.</p><div id="partCards"></div>'+
+ 'Marcá las casillas de cada parte. Para mover una manzana, tildala en la parte de destino.</p><div id="partCards"></div>'+
  '<div class="part-actions"><button type="button" id="partAdd">＋ Agregar parte</button>'+
  '<button type="button" id="partSave">Guardar partes</button>'+
  '<button type="button" id="partUndo">Volver a estado único</button></div>'+
  '<div id="partNotice" role="status"></div><div id="partHistory"></div>';
 start.after(region);
 const legacyIds=["status","assignmentDate","date","assignedTo","person","notes"];
+// Atajos del editor normal; no cambian estados ni guardan automáticamente.
+function normalCopy(sourceId,targetId,text,missing){
+ const source=e(sourceId),target=e(targetId);
+ if(!source||!target||e("copyNormal_"+targetId))return;
+ const btn=document.createElement("button");
+ btn.id="copyNormal_"+targetId;btn.type="button";
+ btn.className="normal-copy";btn.textContent=text;
+ btn.onclick=()=>{
+  if(!writable()||target.disabled)return;
+  if(!String(source.value||"").trim()){
+   alert(missing);source.focus();return;
+  }
+  target.value=source.value;
+  target.dispatchEvent(new Event("input",{bubbles:true}));
+ };
+ target.after(btn);
+}
+normalCopy("assignedTo","person","↳ Igual que «Asignado a»","Primero completá «Asignado a».");
+normalCopy("assignmentDate","date","↳ Misma fecha de asignación","Primero completá la fecha de asignación.");
 function toggle(split){
  legacyIds.forEach(id=>{const f=e(id);if(!f)return;
   f.style.display=split?"none":"";
   if(f.previousElementSibling?.tagName==="LABEL")f.previousElementSibling.style.display=split?"none":"";
  });
  save.style.display=split?"none":(currentRole==="lector"?"none":"");
+ panel.querySelectorAll(".normal-copy").forEach(b=>{b.hidden=split;b.disabled=!writable();});
  if(e("history"))e("history").style.display=split?"none":"";
  start.hidden=split||!ready||!writable()||totalBlocks()<2;
  if(sel)start.style.setProperty("--part-action-color",colors[effectiveState(sel)]||colors.available);
@@ -194,20 +217,22 @@ function cards(){
   const opts=Object.entries(names).map(([v,n])=>'<option value="'+v+'"'+(p.estado===v?" selected":"")+">"+n+"</option>").join("");
   const selected=expand(p.manzanas)||[];
   const chips=all.map(letter=>{
-   const blocked=reserved.has(letter)&&reserved.get(letter)!==i;
-   return '<label class="part-chip" title="'+(blocked?'Asignada en otra parte':'Manzana '+letter)+'">'+
+   const from=reserved.get(letter);
+   const hint=from!==undefined&&from!==i?"Mover desde parte "+(from+1):"Manzana "+letter;
+   return '<label class="part-chip" title="'+hint+'">'+
     '<input type="checkbox" data-letter="'+letter+'"'+(selected.includes(letter)?" checked":"")+
-    (blocked||!writable()?" disabled":"")+'>'+letter+'</label>';
+    (!writable()?" disabled":"")+'>'+letter+'</label>';
   }).join("");
   return '<div class="part-card" data-index="'+i+'"><h3>Parte '+(i+1)+' — '+esc(p.manzanas||"sin definir")+'</h3>'+
    '<label>Seleccioná las manzanas de esta parte</label><div class="part-chips">'+chips+'</div>'+
-   '<label>O escribí las manzanas (ej.: A,C,E o A1,A4)</label><input data-key="manzanas" maxlength="90" value="'+esc(p.manzanas)+'">'+
-   '<div class="part-hint">Podés combinar manzanas separadas, no solamente manzanas consecutivas.</div>'+
+   '<div class="part-hint">Podés seleccionar manzanas consecutivas o separadas. Cada casilla representa una manzana.</div>'+
    '<label>Estado</label><select data-key="estado">'+opts+'</select>'+
    '<div class="part-grid"><div><label>Fecha de asignación</label><input type="date" data-key="fecha_asignacion" value="'+esc(p.fecha_asignacion)+'"></div>'+
-   '<div><label>Fecha de visita</label><input type="date" data-key="fecha_ultima_visita" value="'+esc(p.fecha_ultima_visita)+'"></div></div>'+
+   '<div><label>Fecha de visita</label><input type="date" data-key="fecha_ultima_visita" value="'+esc(p.fecha_ultima_visita)+'">'+
+   '<button type="button" class="part-copy" data-copy="date">↳ Misma fecha de asignación</button></div></div>'+
    '<label>Asignado a</label><input data-key="asignado_a" maxlength="200" value="'+esc(p.asignado_a)+'">'+
    '<label>Realizado por</label><input data-key="persona" maxlength="200" value="'+esc(p.persona)+'">'+
+   '<button type="button" class="part-copy" data-copy="person">↳ Igual que «Asignado a»</button>'+
    '<label>Observaciones</label><textarea rows="2" data-key="observaciones" maxlength="3000">'+esc(p.observaciones)+'</textarea>'+
    (draft.length>2?'<button type="button" data-remove="'+i+'">Quitar parte</button>':"")+"</div>";
  }).join("");
@@ -217,24 +242,51 @@ function cards(){
   input.oninput=()=>{
    const i=+input.closest(".part-card").dataset.index,key=input.dataset.key;
    draft[i][key]=input.value;dirty=true;notice("");
-   if(key==="manzanas")input.closest(".part-card").querySelector("h3").textContent=
-     "Parte "+(i+1)+" — "+(input.value||"sin definir");
    if(key==="estado"&&input.value==="assigned"){
     draft[i].fecha_ultima_visita="";
     input.closest(".part-card").querySelector('[data-key="fecha_ultima_visita"]').value="";
    }
   };
-  if(input.dataset.key==="manzanas")input.onchange=()=>cards();
  });
  box.querySelectorAll("[data-letter]").forEach(input=>{
   input.onchange=()=>{
+   if(!writable())return;
    const i=+input.closest(".part-card").dataset.index,letter=input.dataset.letter;
    const labels=expand(draft[i].manzanas);
-   if(!labels){notice("Corregí el texto de las manzanas antes de usar las casillas.");cards();return;}
+   if(!labels){notice("No se pudo leer la división anterior. Revisá las manzanas.");cards();return;}
    const next=labels.filter(l=>l!==letter);
-   if(input.checked)next.push(letter);
-   draft[i].manzanas=next.join(",");
+   if(input.checked){
+    draft.forEach((p,j)=>{
+     if(j===i)return;
+     const other=expand(p.manzanas)||[];
+     if(other.includes(letter))p.manzanas=other.filter(l=>l!==letter).join(",");
+    });
+    next.push(letter);
+   }
+   draft[i].manzanas=all.filter(l=>next.includes(l)).join(",");
    dirty=true;notice("");cards();
+  };
+ });
+ box.querySelectorAll("[data-copy]").forEach(btn=>{
+  btn.disabled=!permitted;
+  btn.onclick=()=>{
+   if(!writable())return;
+   const card=btn.closest(".part-card");
+   const i=+card.dataset.index,part=draft[i];
+   if(btn.dataset.copy==="person"){
+    if(!part.asignado_a.trim()){notice("Primero escribí el nombre en «Asignado a» (parte "+(i+1)+").");return;}
+    part.persona=part.asignado_a;
+    card.querySelector('[data-key="persona"]').value=part.persona;
+    notice("Se copió el nombre de «Asignado a» en «Realizado por».",false);
+   }else{
+    if(!part.fecha_asignacion){notice("Primero elegí la fecha de asignación (parte "+(i+1)+").");return;}
+    part.fecha_ultima_visita=part.fecha_asignacion;
+    card.querySelector('[data-key="fecha_ultima_visita"]').value=part.fecha_ultima_visita;
+    notice(part.estado==="assigned"
+     ?"Se copió la fecha. Para registrar la visita, elegí el estado «Recién completado»."
+     :"Se copió la fecha de asignación en la fecha de visita.",false);
+   }
+   dirty=true;
   };
  });
  box.querySelectorAll("[data-remove]").forEach(btn=>{
@@ -281,7 +333,7 @@ function validation(){
  const used=new Set();
  for(let i=0;i<draft.length;i++){
   const p=draft[i],labels=expand(p.manzanas);
-  if(!labels)return "Revisá las manzanas de la parte "+(i+1)+". Ejemplos: A-C, A,D o A1,A4.";
+  if(!labels)return "Tildá al menos una manzana en la parte "+(i+1)+".";
   for(const letter of labels){
    if(used.has(letter))return "La manzana "+letter+" está repetida en dos partes.";
    used.add(letter);
@@ -323,7 +375,11 @@ e("partUndo").onclick=async()=>{
 };
 if(typeof applyTerritoryLock==="function"){
  const oldLock=applyTerritoryLock;
- applyTerritoryLock=function(){oldLock();if(draft&&!region.hidden)cards();};
+ applyTerritoryLock=function(){
+ oldLock();
+ panel.querySelectorAll(".normal-copy").forEach(b=>{b.disabled=!writable();});
+ if(draft&&!region.hidden)cards();
+};
 }
 if(typeof startRealtime==="function"){
  const oldRealtime=startRealtime;
