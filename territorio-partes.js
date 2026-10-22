@@ -354,6 +354,25 @@ function validation(){
  }
  return null;
 }
+// Guarda las partes de forma atómica, preservando versiones y permisos del servidor.
+async function persist(id,list){
+ const {error}=await db.rpc("guardar_territorio_partes",{
+  p_territorio_id:+id,
+  p_expected:originalSnapshot,
+  p_partes:list.map(p=>({
+   id:p.id||null,
+   manzanas:p.manzanas?.trim().toUpperCase(),
+   estado:p.estado,
+   fecha_asignacion:p.fecha_asignacion||null,
+   fecha_ultima_visita:p.fecha_ultima_visita||null,
+   asignado_a:p.asignado_a,
+   persona:p.persona,
+   observaciones:p.observaciones
+  }))
+ });
+ if(error)throw error;
+ await reload();
+}
 e("partSave").onclick=async()=>{
  if(!sel||!draft||!writable())return;
  const msg=validation();if(msg){notice(msg);return;}
