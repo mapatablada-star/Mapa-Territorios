@@ -253,8 +253,10 @@ function cards(){
    if(!writable())return;
    const i=+input.closest(".part-card").dataset.index,letter=input.dataset.letter;
    const labels=expand(draft[i].manzanas);
-   if(!labels){notice("No se pudo leer la división anterior. Revisá las manzanas.");cards();return;}
-   const next=labels.filter(l=>l!==letter);
+   if(!labels&&draft[i].manzanas.trim()){
+    notice("No se pudo leer la división anterior. Revisá las manzanas.");cards();return;
+   }
+   const next=(labels||[]).filter(l=>l!==letter);
    if(input.checked){
     draft.forEach((p,j)=>{
      if(j===i)return;
