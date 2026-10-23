@@ -11,7 +11,7 @@ const make = (tag, className, content) => {
   if (content !== undefined) element.textContent = String(content);
   return element;
 };
-const formatDate = date => date ? date.split("-").reverse().join("/") : "—";
+const formatDate = date => date ? String(date).slice(0,10).split("-").reverse().join("/") : "—";
 const statusLabels = {available:"Disponible", assigned:"Asignado", done:"Recién completado"};
 const state = record => {
   if (record.estado !== "done" || !record.fecha_ultima_visita) return record.estado || "available";
@@ -71,6 +71,11 @@ style.textContent = [
 ".qaField>div{min-width:0}",
 ".qaField label{margin-bottom:4px!important}",
 ".qaFull{grid-column:1/-1}",
+".qaPair{display:grid;grid-template-columns:minmax(0,1fr) 30px minmax(0,1fr);gap:7px;align-items:end;margin-bottom:10px}",
+".qaPair>div{min-width:0}",
+".qaPair label{margin-bottom:4px!important}",
+".qaEq{width:30px!important;min-width:30px!important;height:39px!important;min-height:39px!important;padding:0!important;align-self:end;background:#eaf3fb;color:#1d4d76;border:1px solid #bcd4e9;font-size:15px;line-height:1}",
+".qaEq:focus-visible{outline:2px solid #2563eb;outline-offset:2px}",
 "#qaPreview{margin-top:14px;padding:12px;background:#fff;border:1px solid #d6e2ee;border-radius:12px}",
 "#qaPreviewRows{max-height:27vh;overflow:auto;font-size:12px;line-height:1.5}",
 ".qaPreviewLine{padding:7px 0;border-bottom:1px solid #e9eef5}",
@@ -78,7 +83,7 @@ style.textContent = [
 "#qaSave{background:#156f4a;color:white;border:0}",
 "#qaSave:disabled{opacity:.42;cursor:not-allowed}",
 ".qaNote{color:#52677f;font-size:12px;line-height:1.5}",
-"@media(max-width:760px){#qaWindow{padding:12px;max-height:97vh}#qaCols{grid-template-columns:1fr}#qaList{max-height:35vh}.qaField{grid-template-columns:1fr}}"
+"@media(max-width:760px){#qaWindow{padding:12px;max-height:97vh}#qaCols{grid-template-columns:1fr}#qaList{max-height:35vh}.qaField{grid-template-columns:1fr}.qaPair{grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr);gap:5px}.qaPair label{font-size:11px!important}}"
 ].join("\n");
 document.head.appendChild(style);
 
@@ -96,12 +101,9 @@ win.innerHTML=
 '<div id="qaHead"><div><h2>Asignación rápida</h2><p class="qaNote">Seleccioná territorios o partes existentes, revisá y confirmá antes de guardar.</p></div><button type="button" id="qaClose">✕ Cerrar</button></div>'+
 '<div id="qaCols"><section class="qaBlock"><h3>1. Elegí los territorios</h3><div class="qaLine"><input id="qaSearch" placeholder="Buscar número, nombre o manzana" aria-label="Buscar territorio"><button type="button" class="qaGhost" id="qaRefresh">Actualizar</button></div><p class="qaNote" id="qaSelected">0 seleccionados</p><div id="qaList"></div></section>'+
 '<section class="qaBlock"><h3>2. Completá los datos</h3>'+
-'<div class="qaField"><div class="qaFull"><label for="qaAction">Operación</label><select id="qaAction"><option value="assigned">Asignar</option><option value="done">Marcar como completado</option><option value="available">Dejar disponible</option></select></div>'+
-'<div><label for="qaName">Asignado a</label><input id="qaName" maxlength="200" placeholder="Nombre o grupo"></div>'+
-'<div><label for="qaPerson">Realizado por</label><input id="qaPerson" maxlength="200" placeholder="Nombre"></div>'+
-'<div><label for="qaAssignedDate">Fecha de asignación</label><input type="date" id="qaAssignedDate"></div>'+
-'<div><label for="qaVisitDate">Fecha de visita</label><input type="date" id="qaVisitDate"></div></div>'+
-'<div class="qaLine"><button type="button" class="qaGhost" id="qaCopyName">Realizado por = Asignado a</button><button type="button" class="qaGhost" id="qaCopyDate">Visita = Asignación</button></div>'+
+'<div class="qaField"><div class="qaFull"><label for="qaAction">Operación</label><select id="qaAction"><option value="assigned">Asignar</option><option value="done">Marcar como completado</option><option value="available">Dejar disponible</option></select></div></div>'+
+'<div class="qaPair"><div><label for="qaName">Asignado a</label><input id="qaName" maxlength="200" placeholder="Nombre o grupo"></div><button type="button" class="qaEq" id="qaCopyName" title="Copiar Asignado a a Realizado por" aria-label="Copiar Asignado a a Realizado por">=</button><div><label for="qaPerson">Realizado por</label><input id="qaPerson" maxlength="200" placeholder="Nombre"></div></div>'+
+'<div class="qaPair"><div><label for="qaAssignedDate">Fecha de asignación</label><input type="date" id="qaAssignedDate"></div><button type="button" class="qaEq" id="qaCopyDate" title="Copiar Fecha de asignación a Fecha de visita" aria-label="Copiar Fecha de asignación a Fecha de visita">=</button><div><label for="qaVisitDate">Fecha de visita</label><input type="date" id="qaVisitDate"></div></div>'+
 '<p class="qaNote" id="qaHelp">Al asignar, se limpia la fecha de visita anterior. Las observaciones se conservan.</p>'+
 '<button type="button" class="qaGhost" id="qaReview">3. Revisar cambios</button>'+
 '<div id="qaMessage" role="status" aria-live="polite"></div>'+
@@ -114,15 +116,51 @@ const invalidate=()=>{planned=null;$("qaPreview").hidden=true;$("qaSave").disabl
 const keyFor=(row,isPart)=> (isPart?"p:":"t:")+String(row.id);
 const groupParts=id=>parts.filter(p=>String(p.territorio_id)===String(id)).sort((a,b)=>a.orden-b.orden);
 const sortedTerritories=()=>territories.slice().sort((a,b)=>Number(a.numero)-Number(b.numero));
+function selectedRecords(){
+ return [...selected].map(key=>{
+  const [type,id]=key.split(":");
+  return type==="p" ? parts.find(p=>String(p.id)===id) : territories.find(t=>String(t.id)===id);
+ }).filter(Boolean);
+}
+function syncFieldsFromSelection(){
+ const rows=selectedRecords();
+ const fields=[
+  ["qaName","asignado_a","Nombre o grupo",false],
+  ["qaPerson","persona","Nombre",false],
+  ["qaAssignedDate","fecha_asignacion","",true],
+  ["qaVisitDate","fecha_ultima_visita","",true]
+ ];
+ for(const [inputId,field,emptyPlaceholder,isDate] of fields){
+  const input=$(inputId);
+  input.placeholder=emptyPlaceholder || (isDate?"":"");
+  if(!rows.length){input.value="";continue;}
+  const values=rows.map(row=>{
+   const value=row[field];
+   return value==null?"":(isDate?String(value).slice(0,10):String(value));
+  });
+  const distinct=[...new Set(values)];
+  if(distinct.length===1){
+   input.value=distinct[0];
+   input.placeholder=emptyPlaceholder;
+  }else{
+   input.value="";
+   input.placeholder=isDate?"Fechas distintas":"Valores distintos";
+  }
+ }
+}
 function choice(row,isPart,label){
   const line=make("label","qaChoice");
   const check=make("input");check.type="checkbox";
   const key=keyFor(row,isPart);check.checked=selected.has(key);
   check.setAttribute("aria-label",label);
-  check.onchange=()=>{if(check.checked)selected.add(key);else selected.delete(key);invalidate();renderList();};
+  check.onchange=()=>{if(check.checked)selected.add(key);else selected.delete(key);invalidate();syncFieldsFromSelection();renderList();};
   const txt=make("span");
   const bold=make("b","",label);
-  const detail=make("small","",isPart?" · "+n(row.asignado_a||""):" · "+(row.manzanas||1)+" manzana(s)");
+  const detailParts=[];
+  if(!isPart) detailParts.push((row.manzanas||1)+" manzana(s)");
+  detailParts.push(row.asignado_a?"Asignado a: "+row.asignado_a:"Sin asignar");
+  detailParts.push(row.fecha_asignacion?"Fecha: "+formatDate(row.fecha_asignacion):"Sin fecha");
+  const detail=make("small","", " · "+detailParts.join(" · "));
   const tag=make("span","qaTag "+state(row),statusLabels[state(row)]||"Disponible");
   txt.append(bold,detail);
   line.append(check,txt,tag);
@@ -152,7 +190,7 @@ async function refresh(){
  message("Cargando datos actualizados...");
  const r=await freshRows();
  territories=r.territories;parts=r.parts;
- selected.clear();invalidate();renderList();
+ selected.clear();invalidate();syncFieldsFromSelection();renderList();
  message("Lista actualizada. No se modificó ningún territorio.");
 }
 function resolveNew(old,act,form){
