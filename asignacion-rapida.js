@@ -364,7 +364,7 @@ $("qaAction").addEventListener("change",()=>{
   ?"Asignar limpia la fecha de visita y «Realizado por» anteriores; conserva observaciones."
   :op==="done"
   ?"Al completar, ingresá la fecha real de visita y quién lo realizó. Se conserva la asignación existente si dejás esos campos vacíos."
-  :"Disponible conserva las fechas, los nombres y las observaciones anteriores.";
+  :"Disponible conserva los datos que estén escritos; si borrás un nombre o una fecha con ×, también se limpia al guardar. Las observaciones se conservan.";
 });
 $("qaSearch").addEventListener("input",renderList);
 $("qaCopyName").onclick=()=>{$("qaPerson").value=$("qaName").value;invalidate();};
