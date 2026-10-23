@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Asignación rápida · Prueba segura</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#1b2a41;background:#f1f5fa}
+*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button{cursor:pointer}
+header{background:#172033;color:white;padding:16px clamp(14px,3vw,40px);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+header strong{font-size:18px}header a{color:#fff;text-decoration:none;border:1px solid #718096;padding:8px 12px;border-radius:9px}
+.banner{background:#fff3d5;color:#684d18;border-bottom:1px solid #edd49c;padding:12px 20px;font-weight:650;text-align:center}
+main{max-width:1170px;margin:22px auto 50px;padding:0 16px}
+h1{font-size:26px;margin:0 0 6px}h2{font-size:17px;margin:0 0 10px}p{color:#64748b;line-height:1.5;margin:6px 0 15px;font-size:14px}
+.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(290px,1fr);align-items:start;gap:16px}
+.card{background:white;border-radius:14px;padding:21px;border:1px solid #d6e0ed;box-shadow:0 5px 20px #2438550d;margin-bottom:16px}
+label{display:block;font-size:13px;font-weight:700;margin:12px 0 6px;color:#314760}
+input:not([type=checkbox]),select,textarea{width:100%;padding:11px;border:1px solid #bfcfe0;border-radius:9px;background:white;color:#152945}
+input[type=checkbox]{accent-color:#245fbd}textarea{min-height:70px}
+button{padding:10px 13px;background:#245fbd;border:1px solid #245fbd;border-radius:9px;color:#fff;font-weight:700}
+button.secondary{background:white;color:#264c7c;border-color:#bbcede}
+button.on{background:#dbeafe;color:#16458c;border-color:#6399da}
+button:disabled{opacity:.55;cursor:not-allowed}
+.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1}
+.searchlist{border:1px solid #d6e0ed;border-radius:9px;max-height:230px;overflow:auto;margin-top:8px}
+.item{display:flex;align-items:center;gap:8px;border-bottom:1px solid #e9eef5;padding:9px 11px;font-size:14px;cursor:pointer}
+.item:last-child{border-bottom:none}.item:hover{background:#f5f9ff}
+.pill{font-size:11px;background:#eef2f7;border-radius:20px;padding:3px 7px;color:#51637c}
+.part{display:inline-flex;align-items:center;gap:6px;background:#f4f8ff;border:1px solid #d5e3f4;padding:7px 9px;border-radius:9px;margin:4px 4px 4px 0;font-size:13px}
+.part input{margin:0}
+.small{font-size:13px;color:#657890}.warning{background:#fff8e9;border:1px solid #f1dfb5;color:#795611;padding:11px;border-radius:9px;font-size:13px;margin-top:12px;line-height:1.5}
+.notice{background:#eef6ff;border:1px solid #c4dcfa;padding:11px;border-radius:9px;color:#22538a;font-size:13px;margin:12px 0}
+.previewrow{border:1px solid #dae5f1;background:#f8fbff;padding:13px;border-radius:9px;margin:10px 0;font-size:14px;line-height:1.6}
+.strong{font-weight:750} .muted{color:#697a8b} .hidden{display:none!important}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#status{margin:8px 0;color:#385071;font-size:14px} #preview{min-height:72px}
+#authCard{max-width:480px} #authCard button{margin-top:12px}
+@media(max-width:760px){.layout,.fields{grid-template-columns:1fr}.card{padding:15px}header strong{font-size:16px}}
+</style>
+</head>
+<body>
+<header><strong>▦ Gestor de Territorios · Asignación rápida</strong><a href="./">← Volver al mapa</a></header>
+<div class="banner">🛡️ VERSIÓN DE PRUEBA: consulta los territorios reales, pero NO GUARDA NI MODIFICA NINGÚN DATO.</div>
+<main>
+<h1>Asignación rápida — prueba segura</h1>
+<p>Este panel es independiente del mapa. Seleccioná territorios reales, completá el formulario y revisá una simulación de los cambios.</p>
+<section class="card" id="authCard">
+<h2>Acceso</h2><div id="authState" class="small">Comprobando sesión...</div>
+<div id="loginFields" class="hidden">
+<label for="email">Correo de tu cuenta del gestor</label><input type="email" id="email" autocomplete="username">
+<label for="password">Contraseña</label><input type="password" id="password" autocomplete="current-password">
+<button id="login" type="button">Ingresar</button>
+</div></section>
+<div id="app" class="layout hidden">
+<div>
+<section class="card">
+<h2>1 · Qué querés hacer</h2>
+<div class="row">
+<button type="button" class="on" data-action="assigned">Asignar</button>
+<button type="button" class="secondary" data-action="done">Completar</button>
+<button type="button" class="secondary" data-action="available">Liberar</button>
+</div>
+<h2 style="margin-top:25px">2 · Seleccionar territorios</h2>
+<label for="search">Buscar por número</label><input type="search" id="search" placeholder="Ej.: 28">
+<div id="status" role="status">Cargando territorios...</div>
+<div class="row"><button class="secondary" type="button" id="clear">Quitar selección</button><button class="secondary" type="button" id="reload">Actualizar lista</button></div>
+<div class="searchlist" id="list"></div>
+<div class="notice" id="selectedCount">Ningún territorio seleccionado.</div>
+<h2 style="margin-top:23px">3 · Manzanas</h2>
+<label><input type="radio" name="scope" value="all" checked> Territorio completo</label>
+<label><input type="radio" name="scope" value="partial"> Seleccionar manzanas</label>
+<div id="parts" class="hidden"></div>
+<div id="partsWarning" class="warning hidden"></div>
+<h2 style="margin-top:23px">4 · Datos de la operación</h2>
+<div class="fields">
+<div id="nameBox"><label for="name">Asignado a</label><input id="name" placeholder="Persona o grupo"></div>
+<div id="dateBox"><label for="date">Fecha de asignación</label><input type="date" id="date"></div>
+</div>
+<div id="doneBox" class="hidden"><label for="doneBy">Realizado por</label><input id="doneBy" placeholder="Persona o grupo"></div>
+<label for="notes">Observaciones (opcional)</label><textarea id="notes" placeholder="Observaciones..."></textarea>
+<button type="button" id="review" style="width:100%;margin-top:18px">Revisar cambios (sin guardar)</button>
+<div id="error" role="alert" class="warning hidden"></div>
+</section>
+</div>
+<aside>
+<section class="card">
+<h2>Vista previa</h2>
+<p>Se consultan las tablas reales para mostrar los territorios. La operación solo se simula y no se envía a Supabase.</p>
+<div id="preview" class="small">Seleccioná territorios y hacé clic en «Revisar cambios».</div>
+<div id="conflict" class="warning hidden"></div>
+<div class="notice"><b>Protección:</b> no hay botón de guardado. Ningún registro, fecha, historial ni manzana cambiará en esta prueba.</div>
+</section>
+</aside>
+</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+'use strict';
+(function(){
+const endpoint='https://pmogqedfxspyudezyvwd.supabase.co',pub='sb_publishable_R7l--WOCCApJXF6AtGRCOA_qdBbPfOD';
+const db=window.supabase.createClient(endpoint,pub),$=id=>document.getElementById(id);
+let territories=[],parts=[],selected=new Set(),picks=new Map(),action='assigned',scope='all',session=null;
+const ABC='ABCDEFGHIJKLMNÑOPQRSTUVWXYZ';
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+const displayState=x=>({available:'Disponible',assigned:'Asignado',done:'Recién completado'}[x]||String(x||'Sin estado'));
+const selRows=()=>territories.filter(t=>selected.has(t.id));
+const rows=id=>parts.filter(p=>String(p.territorio_id)===String(id));
+function hide(id,yes){$(id).classList.toggle('hidden',yes)}
+function msg(id,txt){$(id).textContent=txt;hide(id,!txt)}
+function setAuthenticated(ok){hide('app',!ok);hide('loginFields',ok);$('authState').textContent=ok?'Sesión activa · Datos reales en modo solo lectura':'Ingresá con tu cuenta del gestor para consultar los territorios.'}
+async function start(){
+  const out=await db.auth.getSession();session=out.data?.session||null;
+  setAuthenticated(!!session);if(session)await reload();
+}
+$('login').addEventListener('click',async()=>{
+  msg('authState','Comprobando credenciales...');
+  const {data,error}=await db.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});
+  if(error){msg('authState','No se pudo ingresar: '+error.message);return;}
+  session=data.session;setAuthenticated(true);await reload();
+});
+function listRender(){
+ const q=$('search').value.trim().toLowerCase();
+ const list=territories.filter(t=>String(t.numero).toLowerCase().includes(q)).sort((a,b)=>Number(a.numero)-Number(b.numero));
+ $('list').innerHTML=list.length?list.map(t=>'<label class="item"><input type="checkbox" data-id="'+t.id+'" '+(selected.has(t.id)?'checked':'')+'><b>Territorio '+esc(t.numero)+'</b><span class="pill">'+esc(displayState(t.estado))+'</span><span class="small">'+esc(t.manzanas)+' manz.</span>'+(rows(t.id).length?'<span class="pill">Dividido</span>':'')+'</label>').join(''):'<div class="small" style="padding:16px">Sin coincidencias.</div>';
+ $('selectedCount').textContent=selected.size+' territorio(s) seleccionado(s).';
+ renderParts();
+}
+function renderParts(){
+ hide('parts',scope!=='partial');hide('partsWarning',true);
+ const chosen=selRows();
+ $('parts').innerHTML=chosen.map(t=>{
+  const n=Math.max(0,Math.min(27,Number(t.manzanas)||0));
+  const letters=Array.from(ABC).slice(0,n);
+  const ss=picks.get(t.id)||new Set();
+  return '<div class="previewrow"><b>Territorio '+esc(t.numero)+'</b><div style="margin-top:5px">'+letters.map(l=>'<label class="part"><input data-territory="'+t.id+'" data-letter="'+l+'" type="checkbox" '+(ss.has(l)?'checked':'')+'>'+l+'</label>').join('')+'</div>'+(rows(t.id).length?'<div class="warning">Ya existen '+rows(t.id).length+' partes guardadas. Una futura edición debe respetar esas partes y verificar conflictos.</div>':'')+'</div>';
+ }).join('')||'<p>Elegí uno o más territorios.</p>';
+ if(scope==='partial'&&chosen.some(t=>rows(t.id).length)){
+  $('partsWarning').textContent='Importante: los territorios divididos requieren comprobar las partes existentes antes de guardar. Esta prueba no reemplaza ni combina partes.';
+  hide('partsWarning',false);
+ }
+}
+async function reload(){
+  $('status').textContent='Cargando territorios y sus partes...';
+  const [a,b]=await Promise.all([
+    db.from('territorios').select('id,numero,manzanas,estado,asignado_a,fecha_asignacion,fecha_ultima_visita').order('numero',{ascending:true}),
+    db.from('territorio_partes').select('id,territorio_id,manzanas,estado,asignado_a,fecha_asignacion,fecha_ultima_visita,version')
+  ]);
+  if(a.error){$('status').textContent='No se pudieron cargar los territorios: '+a.error.message;return;}
+  territories=a.data||[];
+  parts=b.error?[]:b.data||[];
+  $('status').textContent=territories.length+' territorios obtenidos de Supabase'+(b.error?' · No se pudieron leer las partes':'')+'.';
+  selected=new Set([...selected].filter(id=>territories.some(t=>t.id===id)));listRender();
+}
+$('reload').addEventListener('click',reload);
+$('search').addEventListener('input',listRender);
+$('list').addEventListener('change',e=>{
+  if(!e.target.matches('input[data-id]'))return;
+  const id=Number(e.target.dataset.id);
+  if(e.target.checked)selected.add(id);else selected.delete(id);
+  listRender();$('preview').textContent='Selección modificada. Revisá nuevamente.';
+});
+$('clear').addEventListener('click',()=>{selected.clear();picks.clear();listRender();$('preview').textContent='Seleccioná territorios y hacé clic en «Revisar cambios».'});
+$('parts').addEventListener('change',e=>{
+  if(!e.target.matches('input[data-territory]'))return;
+  const id=Number(e.target.dataset.territory),s=picks.get(id)||new Set();
+  if(e.target.checked)s.add(e.target.dataset.letter);else s.delete(e.target.dataset.letter);
+  picks.set(id,s);$('preview').textContent='Selección de manzanas modificada. Revisá nuevamente.';
+});
+document.querySelectorAll('input[name=scope]').forEach(e=>e.addEventListener('change',()=>{
+ scope=document.querySelector('input[name=scope]:checked').value;renderParts();
+}));
+document.querySelectorAll('[data-action]').forEach(btn=>btn.addEventListener('click',()=>{
+ action=btn.dataset.action;
+ document.querySelectorAll('[data-action]').forEach(b=>{b.classList.toggle('on',b===btn);b.classList.toggle('secondary',b!==btn)});
+ hide('nameBox',action==='available');hide('dateBox',action==='available');hide('doneBox',action!=='done');
+ $('dateBox').querySelector('label').textContent=action==='done'?'Fecha real de visita':'Fecha de asignación';
+ $('preview').textContent='Revisá nuevamente.';
+}));
+$('review').addEventListener('click',()=>{
+ msg('error','');
+ const chosen=selRows();
+ if(!chosen.length){msg('error','Seleccioná al menos un territorio.');return}
+ if(scope==='partial'&&chosen.some(t=>!(picks.get(t.id)||new Set()).size)){msg('error','Para seleccionar manzanas, elegí al menos una en cada territorio.');return}
+ if(action!=='available'&&(!$('name').value.trim()||!$('date').value)){msg('error','Completá el nombre y la fecha.');return}
+ if(action==='done'&&!$('doneBy').value.trim()){msg('error','Completá el campo «Realizado por».');return}
+ const txt={assigned:'Asignar',done:'Completar',available:'Liberar'}[action];
+ $('preview').innerHTML=chosen.map(t=>{
+  const rr=rows(t.id),pick=scope==='all'?'Todas':[...(picks.get(t.id)||[])].join(', ');
+  const attr=rr.length?' · '+rr.length+' partes existentes':'';
+  return '<div class="previewrow"><b>Territorio '+esc(t.numero)+'</b><div>Estado actual: '+esc(displayState(t.estado))+esc(attr)+'</div><div>Manzanas: '+esc(pick)+'</div><div>Operación simulada: <b>'+txt+'</b></div>'+(action==='available'?'':'<div>Asignado a: '+esc($('name').value.trim())+'</div><div>Fecha: '+esc($('date').value.split('-').reverse().join('/'))+'</div>')+(action==='done'?'<div>Realizado por: '+esc($('doneBy').value.trim())+'</div>':'')+($('notes').value.trim()?'<div>Observaciones: '+esc($('notes').value.trim())+'</div>':'')+'</div>';
+ }).join('');
+ const conflicts=chosen.filter(t=>rows(t.id).length || t.estado!=='available');
+ hide('conflict',!conflicts.length);
+ if(conflicts.length)$('conflict').textContent='Atención: '+conflicts.map(t=>'territorio '+t.numero).join(', ')+' ya tiene partes o un estado distinto de disponible. En la versión operativa, estas situaciones requerirán controles antes de guardar.';
+});
+start().catch(e=>{setAuthenticated(false);$('authState').textContent='Error al cargar la prueba: '+e.message});
+})();
+</script>
+</body></html>
