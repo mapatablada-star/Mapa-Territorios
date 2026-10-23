@@ -22,6 +22,7 @@
     "#arCard button:disabled{opacity:.48;cursor:not-allowed}",
     "#arReview{margin-top:15px;border:1px solid #dce4ef;border-radius:10px;padding:12px;background:#f8fafc;font-size:13px;line-height:1.55;white-space:pre-wrap}",
     "#arReview[hidden]{display:none!important}",
+    "#arSave[hidden]{display:none!important}",
     "#arReview .arLine{padding:5px 0;border-bottom:1px solid #e5e7eb}",
     "#arReview .arLine:last-child{border-bottom:0}",
     "#arMessage{font-size:13px;line-height:1.45;white-space:pre-wrap;margin-top:10px}",
