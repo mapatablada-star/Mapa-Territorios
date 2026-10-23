@@ -76,6 +76,9 @@ style.textContent = [
 ".qaPair label{margin-bottom:4px!important}",
 ".qaEq{width:30px!important;min-width:30px!important;height:39px!important;min-height:39px!important;padding:0!important;align-self:end;background:#eaf3fb;color:#1d4d76;border:1px solid #bcd4e9;font-size:15px;line-height:1}",
 ".qaEq:focus-visible{outline:2px solid #2563eb;outline-offset:2px}",
+".qaInputClear{display:grid;grid-template-columns:minmax(0,1fr) 25px;gap:4px;align-items:center}",
+".qaClear{width:25px!important;min-width:25px!important;height:25px!important;min-height:25px!important;padding:0!important;border-radius:6px!important;background:#f1f5f9;color:#64748b;border:1px solid #d6e0ea;font-size:13px;line-height:1}",
+".qaClear:hover{background:#fee2e2;color:#b91c1c;border-color:#fecaca}",
 "#qaPreview{margin-top:14px;padding:12px;background:#fff;border:1px solid #d6e2ee;border-radius:12px}",
 "#qaPreviewRows{max-height:27vh;overflow:auto;font-size:12px;line-height:1.5}",
 ".qaPreviewLine{padding:7px 0;border-bottom:1px solid #e9eef5}",
@@ -102,8 +105,8 @@ win.innerHTML=
 '<div id="qaCols"><section class="qaBlock"><h3>1. Elegí los territorios</h3><div class="qaLine"><input id="qaSearch" placeholder="Buscar número, nombre o manzana" aria-label="Buscar territorio"><button type="button" class="qaGhost" id="qaRefresh">Actualizar</button></div><p class="qaNote" id="qaSelected">0 seleccionados</p><div id="qaList"></div></section>'+
 '<section class="qaBlock"><h3>2. Completá los datos</h3>'+
 '<div class="qaField"><div class="qaFull"><label for="qaAction">Operación</label><select id="qaAction"><option value="assigned">Asignar</option><option value="done">Marcar como completado</option><option value="available">Dejar disponible</option></select></div></div>'+
-'<div class="qaPair"><div><label for="qaName">Asignado a</label><input id="qaName" maxlength="200" placeholder="Nombre o grupo"></div><button type="button" class="qaEq" id="qaCopyName" title="Copiar Asignado a a Realizado por" aria-label="Copiar Asignado a a Realizado por">=</button><div><label for="qaPerson">Realizado por</label><input id="qaPerson" maxlength="200" placeholder="Nombre"></div></div>'+
-'<div class="qaPair"><div><label for="qaAssignedDate">Fecha de asignación</label><input type="date" id="qaAssignedDate"></div><button type="button" class="qaEq" id="qaCopyDate" title="Copiar Fecha de asignación a Fecha de visita" aria-label="Copiar Fecha de asignación a Fecha de visita">=</button><div><label for="qaVisitDate">Fecha de visita</label><input type="date" id="qaVisitDate"></div></div>'+
+'<div class="qaPair"><div><label for="qaName">Asignado a</label><div class="qaInputClear"><input id="qaName" maxlength="200" placeholder="Nombre o grupo"><button type="button" class="qaClear" data-clear="qaName" title="Borrar asignado a" aria-label="Borrar asignado a">×</button></div></div><button type="button" class="qaEq" id="qaCopyName" title="Copiar Asignado a a Realizado por" aria-label="Copiar Asignado a a Realizado por">=</button><div><label for="qaPerson">Realizado por</label><div class="qaInputClear"><input id="qaPerson" maxlength="200" placeholder="Nombre"><button type="button" class="qaClear" data-clear="qaPerson" title="Borrar realizado por" aria-label="Borrar realizado por">×</button></div></div></div>'+
+'<div class="qaPair"><div><label for="qaAssignedDate">Fecha de asignación</label><div class="qaInputClear"><input type="date" id="qaAssignedDate"><button type="button" class="qaClear" data-clear="qaAssignedDate" title="Borrar fecha de asignación" aria-label="Borrar fecha de asignación">×</button></div></div><button type="button" class="qaEq" id="qaCopyDate" title="Copiar Fecha de asignación a Fecha de visita" aria-label="Copiar Fecha de asignación a Fecha de visita">=</button><div><label for="qaVisitDate">Fecha de visita</label><div class="qaInputClear"><input type="date" id="qaVisitDate"><button type="button" class="qaClear" data-clear="qaVisitDate" title="Borrar fecha de visita" aria-label="Borrar fecha de visita">×</button></div></div></div>'+
 '<p class="qaNote" id="qaHelp">Al asignar, se limpia la fecha de visita anterior. Las observaciones se conservan.</p>'+
 '<button type="button" class="qaGhost" id="qaReview">3. Revisar cambios</button>'+
 '<div id="qaMessage" role="status" aria-live="polite"></div>'+
@@ -211,7 +214,12 @@ function resolveNew(old,act,form){
   if(!next.asignado_a||!next.fecha_asignacion||!next.fecha_ultima_visita||!next.persona)
     throw Error("Para completar, indicá asignado a, fecha de asignación, fecha de visita y realizado por (podés conservar los existentes).");
  }else if(act==="available"){
-  next.estado="available"; // Conserva fecha, nombre, observaciones e historial.
+  next.estado="available";
+  // Los campos se precargan con los valores existentes; si el usuario los borra, se guarda el borrado.
+  next.asignado_a=form.name||"";
+  next.persona=form.person||"";
+  next.fecha_asignacion=form.assignedDate||null;
+  next.fecha_ultima_visita=form.visitDate||null;
  }
  if(next.fecha_ultima_visita && next.fecha_asignacion && next.fecha_ultima_visita<next.fecha_asignacion)
    throw Error("La fecha de visita no puede ser anterior a la fecha de asignación.");
@@ -361,6 +369,9 @@ $("qaAction").addEventListener("change",()=>{
 $("qaSearch").addEventListener("input",renderList);
 $("qaCopyName").onclick=()=>{$("qaPerson").value=$("qaName").value;invalidate();};
 $("qaCopyDate").onclick=()=>{$("qaVisitDate").value=$("qaAssignedDate").value;invalidate();};
+for(const button of mask.querySelectorAll("[data-clear]")){
+ button.onclick=()=>{const field=$(button.dataset.clear);field.value="";invalidate();field.focus();};
+}
 $("qaReview").onclick=async()=>{
  try{message("Verificando territorios...");await review();}catch(err){message(err.message||String(err),true);}
 };
