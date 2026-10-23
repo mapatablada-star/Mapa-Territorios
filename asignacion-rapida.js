@@ -290,6 +290,7 @@ async function save(){
  const num=[...planned].reduce((a,g)=>a+g.changes.size,0);
  if(!confirm("¿Confirmás "+num+" cambio(s) en "+planned.length+" territorio(s)? Los cambios reales quedarán registrados en Supabase."))return;
  busy=true;$("qaSave").disabled=true;$("qaReview").disabled=true;$("qaRefresh").disabled=true;
+ const totalGroups=planned.length;
  let completed=0,failed=null;
  try{
    const s=await db.auth.getSession();
@@ -304,7 +305,7 @@ async function save(){
  planned=null;$("qaPreview").hidden=true;
  try{const r=await freshRows();territories=r.territories;parts=r.parts;selected.clear();renderList();}
  catch(err){console.warn("No se pudo actualizar el panel",err);}
- if(failed)message("Se guardaron "+completed+" de "+(completed+((planned||[]).length))+" territorios procesados. Se detuvo la operación: "+(failed.message||failed)+". Revisá los cambios antes de intentar nuevamente.",true);
+ if(failed)message("Se guardaron "+completed+" de "+totalGroups+" territorios seleccionados. Se detuvo la operación: "+(failed.message||failed)+". Revisá los cambios antes de intentar nuevamente.",true);
  else message("Se guardaron "+completed+" territorio(s) correctamente. El mapa y los historiales se actualizaron.");
  busy=false;$("qaReview").disabled=false;$("qaRefresh").disabled=false;
 }
@@ -332,6 +333,8 @@ mask.addEventListener("click",event=>{if(event.target===mask && !busy)mask.hidde
 document.addEventListener("keydown",event=>{if(event.key==="Escape" && !busy)mask.hidden=true;});
 openButton.onclick=async()=>{
  if(!editable()){alert("Necesitás iniciar sesión como administrador o usuario.");return;}
+ const editor=document.getElementById("panel");
+ if(editor && editor.classList.contains("show")){alert("Cerrá el editor del territorio antes de utilizar la asignación rápida.");return;}
  mask.hidden=false;
  try{await refresh();$("qaSearch").focus();}catch(err){message(err.message||String(err),true);}
 };
