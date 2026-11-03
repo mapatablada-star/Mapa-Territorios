@@ -47,13 +47,12 @@ function state(p){
 function detail(t){
  const a=rows(t.id),source=a.length?a:[t];
  const u=[...new Set(a.map(state))];
- const fr=[...new Set(source.map(p=>p.franja_visita||""))];
- const dy=[...new Set(source.map(p=>p.tipo_dia||""))];
+ const fr=[...new Set(source.map(p=>p.franja_visita).filter(Boolean))];
+ const dy=[...new Set(source.map(p=>p.tipo_dia).filter(Boolean))];
  return {
   a,s:a.length?u[0]:effectiveState(t),mixed:a.length?u.length>1:false,
-  franja:fr.length===1?fr[0]:fr.some(Boolean)?"mixed":"",
-  tipoDia:dy.length===1?dy[0]:dy.some(Boolean)?"mixed":"",
-  franjaMixed:fr.length>1,dayMixed:dy.length>1
+  franja:fr.length===1?fr[0]:fr.length>1?"mixed":"",
+  tipoDia:dy.length===1?dy[0]:dy.length>1?"mixed":""
  };
 }
 function metaText(p){
@@ -97,7 +96,7 @@ function redraw(){
   b.classList.toggle("visit-afternoon",d.franja==="tarde");
   b.classList.toggle("visit-time-mixed",d.franja==="mixed");
   let dot=b.querySelector(".visit-meta-dot");
-  if(d.franja||d.tipoDia){
+  if(d.franja){
    if(!dot){dot=document.createElement("span");dot.className="visit-meta-dot";dot.setAttribute("aria-hidden","true");b.appendChild(dot);}
    dot.classList.toggle("morning",d.franja==="manana");
    dot.classList.toggle("afternoon",d.franja==="tarde");
