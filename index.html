@@ -955,7 +955,8 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
   const franjaInput = franjaField.select;
   const tipoDiaInput = dayField.select;
   const syncMetaLock = () => {
-    const locked = !!visit.disabled;
+    const locked = !!(status && status.disabled) ||
+      (typeof currentRole !== "undefined" && currentRole === "lector");
     franjaInput.disabled = locked;
     tipoDiaInput.disabled = locked;
   };
@@ -977,6 +978,9 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
     syncMetaLock();
   };
 
+  const permissionObserver = new MutationObserver(syncMetaLock);
+  permissionObserver.observe(visit,{attributes:true,attributeFilter:["disabled"]});
+  if(status)permissionObserver.observe(status,{attributes:true,attributeFilter:["disabled"]});
   new MutationObserver(function(){
     assignment.disabled = !!visit.disabled;
     syncMetaLock();
