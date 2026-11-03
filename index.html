@@ -922,6 +922,9 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
   const metaGrid = document.createElement("div");
   metaGrid.id = "visitMetaGrid";
   metaGrid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 12px;max-width:100%;";
+  const metaStyle = d.createElement("style");
+  metaStyle.textContent = "@media(max-width:560px){#visitMetaGrid{grid-template-columns:1fr!important}}";
+  d.head.appendChild(metaStyle);
   const makeMetaSelect = (id, labelText, options) => {
     const wrap = document.createElement("div");
     const label = document.createElement("label");
@@ -1199,12 +1202,12 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
 
     // Estados independientes por manzana (opcional; sin alterar el editor existente).
     const partialModule = d.createElement("script");
-    partialModule.src = "./territorio-partes.js?v=5";
+    partialModule.src = "./territorio-partes.js?v=6";
     d.head.appendChild(partialModule);
 
     // Asignación rápida: módulo independiente, integrado mediante un botón opcional.
     const quickModule = d.createElement("script");
-    quickModule.src = "./asignacion-rapida.js?v=3";
+    quickModule.src = "./asignacion-rapida.js?v=4";
     d.head.appendChild(quickModule);
 
     let zoom = 1;
