@@ -261,16 +261,12 @@ function resolveNew(old,act,form){
   next.fecha_asignacion=form.assignedDate;
   next.fecha_ultima_visita=null;
   next.persona="";
-  next.franja_visita=form.franja||n(old.franja_visita)||null;
-  next.tipo_dia=form.tipoDia||n(old.tipo_dia)||null;
  }else if(act==="done"){
   next.estado="done";
   next.asignado_a=form.name||n(old.asignado_a);
   next.fecha_asignacion=form.assignedDate||old.fecha_asignacion||null;
   next.fecha_ultima_visita=form.visitDate||null;
   next.persona=form.person||"";
-  next.franja_visita=form.franja||n(old.franja_visita)||null;
-  next.tipo_dia=form.tipoDia||n(old.tipo_dia)||null;
   if(!next.asignado_a||!next.fecha_asignacion||!next.fecha_ultima_visita||!next.persona)
     throw Error("Para completar, indicá asignado a, fecha de asignación, fecha de visita y realizado por (podés conservar los existentes).");
  }else if(act==="available"){
@@ -281,6 +277,12 @@ function resolveNew(old,act,form){
   next.fecha_asignacion=form.assignedDate||null;
   next.fecha_ultima_visita=form.visitDate||null;
  }
+ // Los valores escritos se aplican a todos los seleccionados; si se vacían expresamente,
+ // también se permite limpiar ese dato. Si no se tocaron, se conserva el valor individual.
+ next.franja_visita=formTouched.has("qaFranja")
+   ? (form.franja||null) : (form.franja||n(old.franja_visita)||null);
+ next.tipo_dia=formTouched.has("qaTipoDia")
+   ? (form.tipoDia||null) : (form.tipoDia||n(old.tipo_dia)||null);
  if(next.fecha_ultima_visita && next.fecha_asignacion && next.fecha_ultima_visita<next.fecha_asignacion)
    throw Error("La fecha de visita no puede ser anterior a la fecha de asignación.");
  return next;
