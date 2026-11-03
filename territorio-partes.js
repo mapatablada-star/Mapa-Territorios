@@ -176,7 +176,7 @@ style.textContent=[
  "#partNotice,#partHistory{font-size:12px;line-height:1.5;margin:10px 0;color:#475569}",
  "#partNotice{min-height:16px}",
  ".p.part-point{border:1.5px solid #fff!important;box-shadow:0 0 0 1px rgba(24,49,83,.16),0 3px 10px rgba(24,49,83,.22)!important}",
- ".p.visit-point{position:relative!important;overflow:visible!important}",
+ ".p.visit-point{overflow:visible!important}",
  ".p.visit-weekday{box-shadow:0 0 0 2px #d8dee5,0 3px 10px rgba(24,49,83,.20)!important}",
  ".p.visit-weekend{box-shadow:0 0 0 2px #171717,0 3px 10px rgba(24,49,83,.25)!important}",
  ".p.visit-day-mixed{box-shadow:0 0 0 2px #8c969f,0 3px 10px rgba(24,49,83,.20)!important;outline:1px dashed #171717;outline-offset:2px}",
