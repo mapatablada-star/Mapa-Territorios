@@ -59,6 +59,10 @@ style.textContent = [
 "#qaList{overflow-y:auto;max-height:51vh;border-top:1px solid #e4eaf1}",
 ".qaTerr{padding:11px 3px;border-bottom:1px solid #e8eef4}",
 ".qaTerrHead{font-size:13px;font-weight:850;color:#153650;margin-bottom:7px}",
+".qaSplitTools{margin:7px 0 10px;padding:9px;background:#f7faff;border:1px dashed #b8cde2;border-radius:10px}",
+".qaSplitGrid{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}",
+".qaSplitGrid label{display:flex!important;align-items:center;gap:5px;padding:6px 9px!important;background:#fff;border:1px solid #cbd9e6;border-radius:8px;cursor:pointer}",
+".qaSplitActions{display:flex;gap:7px;flex-wrap:wrap}",
 ".qaChoice{display:flex!important;align-items:center;gap:9px;padding:7px 10px!important;margin:5px 0!important;background:#f5f9fe;border:1px solid #dce8f5;border-radius:9px;cursor:pointer}",
 ".qaChoice:has(input:checked){background:#e7f2ff;border-color:#86b3e7}",
 ".qaChoice b{font-size:13px;color:#173c5b}",
@@ -113,7 +117,7 @@ win.innerHTML=
 '<div id="qaPreview" hidden><b>Vista previa — todavía no se guardó nada</b><div id="qaPreviewRows"></div><p class="qaNote">Se comprobarán nuevamente los datos y permisos antes de guardar. Cada territorio se guarda por separado.</p><button type="button" id="qaSave" disabled>Confirmar y guardar</button></div></section></div>';
 document.body.appendChild(mask);
 
-let territories=[],parts=[],selected=new Set(),planned=null,busy=false;
+let territories=[],parts=[],selected=new Set(),splitDrafts=new Map(),splitSelections=new Map(),planned=null,busy=false;
 const message=(value,bad=false)=>{const node=$("qaMessage");node.textContent=value||"";node.style.color=bad?"#b91c1c":"#17623f";};
 const invalidate=()=>{planned=null;$("qaPreview").hidden=true;$("qaSave").disabled=true;message("");};
 const keyFor=(row,isPart)=> (isPart?"p:":"t:")+String(row.id);
@@ -182,7 +186,52 @@ function renderList(){
   card.appendChild(title);
   if(ps.length){
     for(const p of ps)card.appendChild(choice(p,true,"Parte "+p.orden+" · manzanas "+p.manzanas));
-  }else card.appendChild(choice(t,false,"Territorio completo"));
+  }else{
+    const draft=splitDrafts.get(String(t.id));
+    if(!draft){
+      card.appendChild(choice(t,false,"Territorio completo"));
+      const splitBtn=make("button","qaGhost","✂ Dividir y elegir manzanas");
+      splitBtn.type="button";
+      splitBtn.onclick=()=>{
+        selected.delete("t:"+t.id);
+        splitDrafts.set(String(t.id),new Set());
+        invalidate();syncFieldsFromSelection();renderList();
+      };
+      card.appendChild(splitBtn);
+    }else{
+      const panel=make("div","qaSplitTools");
+      panel.appendChild(make("div","qaNote","Marcá las manzanas que querés modificar. Las demás conservarán su estado y sus datos."));
+      const grid=make("div","qaSplitGrid");
+      const alphabet="ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
+      const count=Math.max(1,Math.min(27,Number(t.manzanas)||1));
+      for(const letter of [...alphabet].slice(0,count)){
+        const label=make("label");
+        const check=make("input");check.type="checkbox";check.checked=draft.has(letter);
+        check.onchange=()=>{if(check.checked)draft.add(letter);else draft.delete(letter);};
+        label.append(check,make("b","",letter));grid.appendChild(label);
+      }
+      panel.appendChild(grid);
+      const actions=make("div","qaSplitActions");
+      const apply=make("button","qaGhost","Usar manzanas seleccionadas");
+      apply.type="button";
+      apply.onclick=()=>{
+        const chosen=[...draft].sort((a,b)=>alphabet.indexOf(a)-alphabet.indexOf(b));
+        if(!chosen.length||chosen.length>=count){
+          message("Elegí al menos una manzana, pero dejá otra sin seleccionar para conservarla aparte.",true);return;
+        }
+        splitSelections.set(String(t.id),chosen);
+        selected.add("n:"+t.id);
+        splitDrafts.delete(String(t.id));
+        invalidate();syncFieldsFromSelection();renderList();
+      };
+      const cancel=make("button","qaGhost","Cancelar");
+      cancel.type="button";cancel.onclick=()=>{splitDrafts.delete(String(t.id));renderList();};
+      actions.append(apply,cancel);panel.appendChild(actions);card.appendChild(panel);
+    }
+    if(splitSelections.has(String(t.id))){
+      card.appendChild(make("div","qaNote","Selección parcial preparada: manzanas "+splitSelections.get(String(t.id)).join(", ")+"."));
+    }
+  }
   list.appendChild(card);
  }
  if(!list.children.length)list.appendChild(make("p","qaNote","No se encontraron territorios."));
@@ -193,7 +242,7 @@ async function refresh(){
  message("Cargando datos actualizados...");
  const r=await freshRows();
  territories=r.territories;parts=r.parts;
- selected.clear();invalidate();syncFieldsFromSelection();renderList();
+ selected.clear();splitDrafts.clear();splitSelections.clear();invalidate();syncFieldsFromSelection();renderList();
  message("Lista actualizada. No se modificó ningún territorio.");
 }
 function resolveNew(old,act,form){
@@ -245,7 +294,7 @@ async function review(){
  });
  const groups=[];
  for(const [key,idString] of [...selected].map(k=>[k,k.split(":")[1]])){
-   let tid,selectedPart=null;
+   let tid,selectedPart=null,isNewSplit=key.startsWith("n:");
    if(key.startsWith("p:")){
      selectedPart=live.parts.find(p=>String(p.id)===idString);
      if(!selectedPart)throw Error("Una parte seleccionada ya no existe. Actualizá la lista.");
@@ -254,11 +303,15 @@ async function review(){
    const territory=all.get(tid);
    if(!territory)throw Error("Un territorio seleccionado ya no existe.");
    const availableParts=(byTerr.get(tid)||[]).sort((a,b)=>a.orden-b.orden);
+   if(isNewSplit){
+     if(availableParts.length)throw Error("El territorio ya fue dividido. Actualizá la lista.");
+     if(!splitSelections.has(tid))throw Error("La selección de manzanas se perdió. Volvé a elegirlas.");
+   }
    if(key.startsWith("t:") && availableParts.length)throw Error("Un territorio pasó a estar dividido. Actualizá la lista.");
    if(key.startsWith("p:") && !availableParts.length)throw Error("La división de un territorio cambió. Actualizá la lista.");
    let group=groups.find(g=>String(g.t.id)===tid);
    if(!group){
-     group={t:territory,originalParts:availableParts,changes:new Map()};
+     group={t:territory,originalParts:availableParts,changes:new Map(),newSplit:isNewSplit,splitManzanas:isNewSplit?splitSelections.get(tid):null};
      groups.push(group);
    }
    const old=selectedPart||territory;
@@ -274,7 +327,7 @@ async function review(){
  for(const g of active){
    for(const ch of g.changes.values()){
      count++;
-     const target=ch.key.startsWith("p:")?"parte "+ch.old.orden+" ("+ch.old.manzanas+")":"territorio completo";
+     const target=ch.key.startsWith("p:")?"parte "+ch.old.orden+" ("+ch.old.manzanas+")":ch.key.startsWith("n:")?"manzanas "+(g.splitManzanas||[]).join(", "):"territorio completo";
      const info="Territorio "+g.t.numero+" · "+target+
       " | "+(statusLabels[state(ch.old)]||ch.old.estado)+" → "+statusLabels[ch.next.estado]+
       " | Asignado a: "+(ch.next.asignado_a||"—")+
@@ -303,8 +356,20 @@ async function assertUnchanged(group){
 }
 async function writeGroup(group,session){
  await assertUnchanged(group);
- if(group.originalParts.length){
-   const updated=group.originalParts.map(p=>{
+ if(group.originalParts.length || group.newSplit){
+   const updated=group.newSplit ? (()=>{
+     const alphabet="ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
+     const count=Math.max(1,Math.min(27,Number(group.t.manzanas)||1));
+     const all=[...alphabet].slice(0,count);
+     const chosen=(group.splitManzanas||[]).slice();
+     const remainder=all.filter(letter=>!chosen.includes(letter));
+     const changed=[...group.changes.values()][0].next;
+     const base={estado:group.t.estado||"available",fecha_asignacion:group.t.fecha_asignacion||null,fecha_ultima_visita:group.t.fecha_ultima_visita||null,asignado_a:group.t.asignado_a||"",persona:group.t.persona||"",observaciones:group.t.observaciones||""};
+     return [
+       {id:null,manzanas:chosen.join(","),estado:changed.estado,fecha_asignacion:changed.fecha_asignacion||null,fecha_ultima_visita:changed.fecha_ultima_visita||null,asignado_a:changed.asignado_a||"",persona:changed.persona||"",observaciones:changed.observaciones||""},
+       {id:null,manzanas:remainder.join(","),...base}
+     ];
+   })() : group.originalParts.map(p=>{
      const change=group.changes.get("p:"+p.id);
      const row=change?change.next:p;
      return {id:p.id,manzanas:p.manzanas,estado:row.estado,
@@ -349,7 +414,7 @@ async function save(){
  }catch(err){failed=err;}
  try{await loadTerritories();}catch(err){console.warn("No se pudo actualizar la lista:",err);}
  planned=null;$("qaPreview").hidden=true;
- try{const r=await freshRows();territories=r.territories;parts=r.parts;selected.clear();renderList();}
+ try{const r=await freshRows();territories=r.territories;parts=r.parts;selected.clear();splitDrafts.clear();splitSelections.clear();renderList();}
  catch(err){console.warn("No se pudo actualizar el panel",err);}
  if(failed)message("Se guardaron "+completed+" de "+totalGroups+" territorios seleccionados. Se detuvo la operación: "+(failed.message||failed)+". Revisá los cambios antes de intentar nuevamente.",true);
  else message("Se guardaron "+completed+" territorio(s) correctamente. El mapa y los historiales se actualizaron.");
