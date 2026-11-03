@@ -26,8 +26,8 @@ const n = value => String(value===null || value===undefined ? "" : value);
 const hasLock = id => typeof otherEditorFor === "function" && !!otherEditorFor(id);
 const freshRows = async () => {
   const [a,b] = await Promise.all([
-    db.from("territorios").select("id,numero,manzanas,estado,fecha_asignacion,fecha_ultima_visita,asignado_a,persona,observaciones,updated_at").order("numero"),
-    db.from("territorio_partes").select("id,territorio_id,orden,manzanas,estado,fecha_asignacion,fecha_ultima_visita,asignado_a,persona,observaciones,version").order("territorio_id").order("orden")
+    db.from("territorios").select("id,numero,manzanas,estado,fecha_asignacion,fecha_ultima_visita,asignado_a,persona,observaciones,franja_visita,tipo_dia,updated_at").order("numero"),
+    db.from("territorio_partes").select("id,territorio_id,orden,manzanas,estado,fecha_asignacion,fecha_ultima_visita,asignado_a,persona,observaciones,franja_visita,tipo_dia,version").order("territorio_id").order("orden")
   ]);
   if (a.error) throw a.error;
   if (b.error) throw b.error;
@@ -59,6 +59,9 @@ style.textContent = [
 "#qaList{overflow-y:auto;max-height:51vh;border-top:1px solid #e4eaf1}",
 ".qaTerr{padding:11px 3px;border-bottom:1px solid #e8eef4}",
 ".qaTerrHead{font-size:13px;font-weight:850;color:#153650;margin-bottom:7px}",
+".qaMeta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:8px 0 10px}",
+".qaMeta>div{min-width:0}",
+"@media(max-width:760px){.qaMeta{grid-template-columns:1fr}}",
 ".qaSplitTools{margin:7px 0 10px;padding:9px;background:#f7faff;border:1px dashed #b8cde2;border-radius:10px}",
 ".qaSplitGrid{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}",
 ".qaSplitGrid label{display:flex!important;align-items:center;gap:5px;padding:6px 9px!important;background:#fff;border:1px solid #cbd9e6;border-radius:8px;cursor:pointer}",
@@ -111,7 +114,8 @@ win.innerHTML=
 '<div class="qaField"><div class="qaFull"><label for="qaAction">Operación</label><select id="qaAction"><option value="assigned">Asignar</option><option value="done">Marcar como completado</option><option value="available">Dejar disponible</option></select></div></div>'+
 '<div class="qaPair"><div><label for="qaName">Asignado a</label><div class="qaInputClear"><input id="qaName" maxlength="200" placeholder="Nombre o grupo"><button type="button" class="qaClear" data-clear="qaName" title="Borrar asignado a" aria-label="Borrar asignado a">×</button></div></div><button type="button" class="qaEq" id="qaCopyName" title="Copiar Asignado a a Realizado por" aria-label="Copiar Asignado a a Realizado por">=</button><div><label for="qaPerson">Realizado por</label><div class="qaInputClear"><input id="qaPerson" maxlength="200" placeholder="Nombre"><button type="button" class="qaClear" data-clear="qaPerson" title="Borrar realizado por" aria-label="Borrar realizado por">×</button></div></div></div>'+
 '<div class="qaPair"><div><label for="qaAssignedDate">Fecha de asignación</label><div class="qaInputClear"><input type="date" id="qaAssignedDate"><button type="button" class="qaClear" data-clear="qaAssignedDate" title="Borrar fecha de asignación" aria-label="Borrar fecha de asignación">×</button></div></div><button type="button" class="qaEq" id="qaCopyDate" title="Copiar Fecha de asignación a Fecha de visita" aria-label="Copiar Fecha de asignación a Fecha de visita">=</button><div><label for="qaVisitDate">Fecha de visita</label><div class="qaInputClear"><input type="date" id="qaVisitDate"><button type="button" class="qaClear" data-clear="qaVisitDate" title="Borrar fecha de visita" aria-label="Borrar fecha de visita">×</button></div></div></div>'+
-'<p class="qaNote" id="qaHelp">Al asignar, se limpia la fecha de visita anterior. Las observaciones se conservan.</p>'+
+'<div class="qaMeta"><div><label for="qaFranja">Momento de visita</label><select id="qaFranja"><option value="">Sin definir</option><option value="manana">☀ Mañana</option><option value="tarde">🌇 Tarde</option></select></div><div><label for="qaTipoDia">Tipo de día</label><select id="qaTipoDia"><option value="">Sin definir</option><option value="semana">Entre semana</option><option value="fin_de_semana">Fin de semana</option></select></div></div>'+
+'<p class="qaNote" id="qaHelp">Al asignar, podés registrar el momento del día y si corresponde a un día de semana o fin de semana.</p>'+
 '<button type="button" class="qaGhost" id="qaReview">3. Revisar cambios</button>'+
 '<div id="qaMessage" role="status" aria-live="polite"></div>'+
 '<div id="qaPreview" hidden><b>Vista previa — todavía no se guardó nada</b><div id="qaPreviewRows"></div><p class="qaNote">Se comprobarán nuevamente los datos y permisos antes de guardar. Cada territorio se guarda por separado.</p><button type="button" id="qaSave" disabled>Confirmar y guardar</button></div></section></div>';
@@ -135,7 +139,9 @@ function syncFieldsFromSelection(){
   ["qaName","asignado_a","Nombre o grupo",false],
   ["qaPerson","persona","Nombre",false],
   ["qaAssignedDate","fecha_asignacion","",true],
-  ["qaVisitDate","fecha_ultima_visita","",true]
+  ["qaVisitDate","fecha_ultima_visita","",true],
+  ["qaFranja","franja_visita","",false],
+  ["qaTipoDia","tipo_dia","",false]
  ];
  for(const [inputId,field,emptyPlaceholder,isDate] of fields){
   const input=$(inputId);
@@ -254,12 +260,16 @@ function resolveNew(old,act,form){
   next.fecha_asignacion=form.assignedDate;
   next.fecha_ultima_visita=null;
   next.persona="";
+  next.franja_visita=form.franja||n(old.franja_visita)||null;
+  next.tipo_dia=form.tipoDia||n(old.tipo_dia)||null;
  }else if(act==="done"){
   next.estado="done";
   next.asignado_a=form.name||n(old.asignado_a);
   next.fecha_asignacion=form.assignedDate||old.fecha_asignacion||null;
   next.fecha_ultima_visita=form.visitDate||null;
   next.persona=form.person||"";
+  next.franja_visita=form.franja||n(old.franja_visita)||null;
+  next.tipo_dia=form.tipoDia||n(old.tipo_dia)||null;
   if(!next.asignado_a||!next.fecha_asignacion||!next.fecha_ultima_visita||!next.persona)
     throw Error("Para completar, indicá asignado a, fecha de asignación, fecha de visita y realizado por (podés conservar los existentes).");
  }else if(act==="available"){
@@ -274,13 +284,14 @@ function resolveNew(old,act,form){
    throw Error("La fecha de visita no puede ser anterior a la fecha de asignación.");
  return next;
 }
-const valuesEqual=(a,b)=>["estado","fecha_asignacion","fecha_ultima_visita","asignado_a","persona"].every(k=>n(a[k])===n(b[k]));
+const valuesEqual=(a,b)=>["estado","fecha_asignacion","fecha_ultima_visita","asignado_a","persona","franja_visita","tipo_dia"].every(k=>n(a[k])===n(b[k]));
 async function review(){
  invalidate();
  if(!editable())throw Error("No tenés permiso para modificar territorios.");
  if(!selected.size)throw Error("Elegí por lo menos un territorio o una parte.");
  const form={name:$("qaName").value.trim(),person:$("qaPerson").value.trim(),
-  assignedDate:$("qaAssignedDate").value,visitDate:$("qaVisitDate").value};
+  assignedDate:$("qaAssignedDate").value,visitDate:$("qaVisitDate").value,
+  franja:$("qaFranja").value,tipoDia:$("qaTipoDia").value};
  const act=$("qaAction").value;
  if(act==="done" && (!form.visitDate || !form.person))
    throw Error("Para completar, indicá la fecha de visita y quién lo realizó.");
@@ -333,7 +344,9 @@ async function review(){
       " | Asignado a: "+(ch.next.asignado_a||"—")+
       " | Fecha de asignación: "+formatDate(ch.next.fecha_asignacion)+
       " | Visita: "+formatDate(ch.next.fecha_ultima_visita)+
-      " | Realizado por: "+(ch.next.persona||"—");
+      " | Realizado por: "+(ch.next.persona||"—")+
+      " | Momento: "+(ch.next.franja_visita==="manana"?"Mañana":ch.next.franja_visita==="tarde"?"Tarde":"Sin definir")+
+      " | Día: "+(ch.next.tipo_dia==="semana"?"Entre semana":ch.next.tipo_dia==="fin_de_semana"?"Fin de semana":"Sin definir");
      rows.appendChild(make("div","qaPreviewLine",info));
    }
  }
@@ -364,9 +377,9 @@ async function writeGroup(group,session){
      const chosen=(group.splitManzanas||[]).slice();
      const remainder=all.filter(letter=>!chosen.includes(letter));
      const changed=[...group.changes.values()][0].next;
-     const base={estado:group.t.estado||"available",fecha_asignacion:group.t.fecha_asignacion||null,fecha_ultima_visita:group.t.fecha_ultima_visita||null,asignado_a:group.t.asignado_a||"",persona:group.t.persona||"",observaciones:group.t.observaciones||""};
+     const base={estado:group.t.estado||"available",fecha_asignacion:group.t.fecha_asignacion||null,fecha_ultima_visita:group.t.fecha_ultima_visita||null,asignado_a:group.t.asignado_a||"",persona:group.t.persona||"",observaciones:group.t.observaciones||"",franja_visita:group.t.franja_visita||null,tipo_dia:group.t.tipo_dia||null};
      return [
-       {id:null,manzanas:chosen.join(","),estado:changed.estado,fecha_asignacion:changed.fecha_asignacion||null,fecha_ultima_visita:changed.fecha_ultima_visita||null,asignado_a:changed.asignado_a||"",persona:changed.persona||"",observaciones:changed.observaciones||""},
+       {id:null,manzanas:chosen.join(","),estado:changed.estado,fecha_asignacion:changed.fecha_asignacion||null,fecha_ultima_visita:changed.fecha_ultima_visita||null,asignado_a:changed.asignado_a||"",persona:changed.persona||"",observaciones:changed.observaciones||"",franja_visita:changed.franja_visita||null,tipo_dia:changed.tipo_dia||null},
        {id:null,manzanas:remainder.join(","),...base}
      ];
    })() : group.originalParts.map(p=>{
@@ -374,7 +387,8 @@ async function writeGroup(group,session){
      const row=change?change.next:p;
      return {id:p.id,manzanas:p.manzanas,estado:row.estado,
        fecha_asignacion:row.fecha_asignacion||null,fecha_ultima_visita:row.fecha_ultima_visita||null,
-       asignado_a:row.asignado_a||"",persona:row.persona||"",observaciones:row.observaciones||""};
+       asignado_a:row.asignado_a||"",persona:row.persona||"",observaciones:row.observaciones||"",
+       franja_visita:row.franja_visita||null,tipo_dia:row.tipo_dia||null};
    });
    const {error}=await db.rpc("guardar_territorio_partes",{
      p_territorio_id:Number(group.t.id),p_expected:partsSnapshot(group.originalParts),p_partes:updated
@@ -389,7 +403,8 @@ async function writeGroup(group,session){
        estado:changed.estado,fecha_asignacion:changed.fecha_asignacion||null,
        fecha_ultima_visita:changed.fecha_ultima_visita||null,
        asignado_a:changed.asignado_a||"",persona:changed.persona||"",
-       observaciones:changed.observaciones||""
+       observaciones:changed.observaciones||"",
+       franja_visita:changed.franja_visita||null,tipo_dia:changed.tipo_dia||null
      })
    });
    const body=await res.json().catch(()=>({}));
@@ -421,7 +436,7 @@ async function save(){
  busy=false;$("qaReview").disabled=false;$("qaRefresh").disabled=false;
 }
 function formChanged(){invalidate();}
-for(const id of ["qaAction","qaName","qaPerson","qaAssignedDate","qaVisitDate"])
+for(const id of ["qaAction","qaName","qaPerson","qaAssignedDate","qaVisitDate","qaFranja","qaTipoDia"])
   $(id).addEventListener("input",formChanged);
 $("qaAction").addEventListener("change",()=>{
  const op=$("qaAction").value;
