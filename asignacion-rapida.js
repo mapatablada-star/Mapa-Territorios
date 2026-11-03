@@ -115,13 +115,13 @@ win.innerHTML=
 '<div class="qaPair"><div><label for="qaName">Asignado a</label><div class="qaInputClear"><input id="qaName" maxlength="200" placeholder="Nombre o grupo"><button type="button" class="qaClear" data-clear="qaName" title="Borrar asignado a" aria-label="Borrar asignado a">×</button></div></div><button type="button" class="qaEq" id="qaCopyName" title="Copiar Asignado a a Realizado por" aria-label="Copiar Asignado a a Realizado por">=</button><div><label for="qaPerson">Realizado por</label><div class="qaInputClear"><input id="qaPerson" maxlength="200" placeholder="Nombre"><button type="button" class="qaClear" data-clear="qaPerson" title="Borrar realizado por" aria-label="Borrar realizado por">×</button></div></div></div>'+
 '<div class="qaPair"><div><label for="qaAssignedDate">Fecha de asignación</label><div class="qaInputClear"><input type="date" id="qaAssignedDate"><button type="button" class="qaClear" data-clear="qaAssignedDate" title="Borrar fecha de asignación" aria-label="Borrar fecha de asignación">×</button></div></div><button type="button" class="qaEq" id="qaCopyDate" title="Copiar Fecha de asignación a Fecha de visita" aria-label="Copiar Fecha de asignación a Fecha de visita">=</button><div><label for="qaVisitDate">Fecha de visita</label><div class="qaInputClear"><input type="date" id="qaVisitDate"><button type="button" class="qaClear" data-clear="qaVisitDate" title="Borrar fecha de visita" aria-label="Borrar fecha de visita">×</button></div></div></div>'+
 '<div class="qaMeta"><div><label for="qaFranja">Momento de visita</label><select id="qaFranja"><option value="">Sin definir</option><option value="manana">☀ Mañana</option><option value="tarde">🌇 Tarde</option></select></div><div><label for="qaTipoDia">Tipo de día</label><select id="qaTipoDia"><option value="">Sin definir</option><option value="semana">Entre semana</option><option value="fin_de_semana">Fin de semana</option></select></div></div>'+
-'<p class="qaNote" id="qaHelp">Al asignar, podés registrar el momento del día y si corresponde a un día de semana o fin de semana.</p>'+
+'<p class="qaNote" id="qaHelp">Al asignar, podés registrar el momento del día y si corresponde a un día de semana o fin de semana. Los datos que completes se aplican a todos los seleccionados.</p>'+
 '<button type="button" class="qaGhost" id="qaReview">3. Revisar cambios</button>'+
 '<div id="qaMessage" role="status" aria-live="polite"></div>'+
 '<div id="qaPreview" hidden><b>Vista previa — todavía no se guardó nada</b><div id="qaPreviewRows"></div><p class="qaNote">Se comprobarán nuevamente los datos y permisos antes de guardar. Cada territorio se guarda por separado.</p><button type="button" id="qaSave" disabled>Confirmar y guardar</button></div></section></div>';
 document.body.appendChild(mask);
 
-let territories=[],parts=[],selected=new Set(),splitDrafts=new Map(),splitSelections=new Map(),planned=null,busy=false;
+let territories=[],parts=[],selected=new Set(),splitDrafts=new Map(),splitSelections=new Map(),formTouched=new Set(),planned=null,busy=false;
 const message=(value,bad=false)=>{const node=$("qaMessage");node.textContent=value||"";node.style.color=bad?"#b91c1c":"#17623f";};
 const invalidate=()=>{planned=null;$("qaPreview").hidden=true;$("qaSave").disabled=true;message("");};
 const keyFor=(row,isPart)=> (isPart?"p:":"t:")+String(row.id);
@@ -145,6 +145,7 @@ function syncFieldsFromSelection(){
  ];
  for(const [inputId,field,emptyPlaceholder,isDate] of fields){
   const input=$(inputId);
+  if(formTouched.has(inputId))continue;
   input.placeholder=emptyPlaceholder || (isDate?"":"");
   if(!rows.length){input.value="";continue;}
   const values=rows.map(row=>{
@@ -248,7 +249,7 @@ async function refresh(){
  message("Cargando datos actualizados...");
  const r=await freshRows();
  territories=r.territories;parts=r.parts;
- selected.clear();splitDrafts.clear();splitSelections.clear();invalidate();syncFieldsFromSelection();renderList();
+ selected.clear();splitDrafts.clear();splitSelections.clear();formTouched.clear();invalidate();syncFieldsFromSelection();renderList();
  message("Lista actualizada. No se modificó ningún territorio.");
 }
 function resolveNew(old,act,form){
@@ -429,15 +430,17 @@ async function save(){
  }catch(err){failed=err;}
  try{await loadTerritories();}catch(err){console.warn("No se pudo actualizar la lista:",err);}
  planned=null;$("qaPreview").hidden=true;
- try{const r=await freshRows();territories=r.territories;parts=r.parts;selected.clear();splitDrafts.clear();splitSelections.clear();renderList();}
+ try{const r=await freshRows();territories=r.territories;parts=r.parts;selected.clear();splitDrafts.clear();splitSelections.clear();formTouched.clear();syncFieldsFromSelection();renderList();}
  catch(err){console.warn("No se pudo actualizar el panel",err);}
  if(failed)message("Se guardaron "+completed+" de "+totalGroups+" territorios seleccionados. Se detuvo la operación: "+(failed.message||failed)+". Revisá los cambios antes de intentar nuevamente.",true);
  else message("Se guardaron "+completed+" territorio(s) correctamente. El mapa y los historiales se actualizaron.");
  busy=false;$("qaReview").disabled=false;$("qaRefresh").disabled=false;
 }
-function formChanged(){invalidate();}
-for(const id of ["qaAction","qaName","qaPerson","qaAssignedDate","qaVisitDate","qaFranja","qaTipoDia"])
-  $(id).addEventListener("input",formChanged);
+function formChanged(id){if(id)formTouched.add(id);invalidate();}
+for(const id of ["qaAction","qaName","qaPerson","qaAssignedDate","qaVisitDate","qaFranja","qaTipoDia"]){
+  $(id).addEventListener("input",()=>formChanged(id));
+  $(id).addEventListener("change",()=>formChanged(id));
+}
 $("qaAction").addEventListener("change",()=>{
  const op=$("qaAction").value;
  $("qaHelp").textContent=op==="assigned"
@@ -447,10 +450,10 @@ $("qaAction").addEventListener("change",()=>{
   :"Disponible conserva los datos registrados, incluido el momento y el tipo de día. Si borrás un nombre o una fecha con ×, también se limpia al guardar.";
 });
 $("qaSearch").addEventListener("input",renderList);
-$("qaCopyName").onclick=()=>{$("qaPerson").value=$("qaName").value;invalidate();};
-$("qaCopyDate").onclick=()=>{$("qaVisitDate").value=$("qaAssignedDate").value;invalidate();};
+$("qaCopyName").onclick=()=>{$("qaPerson").value=$("qaName").value;formTouched.add("qaPerson");invalidate();};
+$("qaCopyDate").onclick=()=>{$("qaVisitDate").value=$("qaAssignedDate").value;formTouched.add("qaVisitDate");invalidate();};
 for(const button of mask.querySelectorAll("[data-clear]")){
- button.onclick=()=>{const field=$(button.dataset.clear);field.value="";invalidate();field.focus();};
+ button.onclick=()=>{const field=$(button.dataset.clear);field.value="";formTouched.add(button.dataset.clear);invalidate();field.focus();};
 }
 $("qaReview").onclick=async()=>{
  try{message("Verificando territorios...");await review();}catch(err){message(err.message||String(err),true);}
