@@ -441,10 +441,10 @@ for(const id of ["qaAction","qaName","qaPerson","qaAssignedDate","qaVisitDate","
 $("qaAction").addEventListener("change",()=>{
  const op=$("qaAction").value;
  $("qaHelp").textContent=op==="assigned"
-  ?"Asignar limpia la fecha de visita y «Realizado por» anteriores; conserva observaciones."
+  ?"Al asignar podés registrar el momento de visita y el tipo de día. La fecha de visita y «Realizado por» anteriores se limpian; las observaciones se conservan."
   :op==="done"
-  ?"Al completar, ingresá la fecha real de visita y quién lo realizó. Se conserva la asignación existente si dejás esos campos vacíos."
-  :"Disponible conserva los datos que estén escritos; si borrás un nombre o una fecha con ×, también se limpia al guardar. Las observaciones se conservan.";
+  ?"Al completar, ingresá la fecha real de visita y quién lo realizó. Podés confirmar o corregir el momento y el tipo de día."
+  :"Disponible conserva los datos registrados, incluido el momento y el tipo de día. Si borrás un nombre o una fecha con ×, también se limpia al guardar.";
 });
 $("qaSearch").addEventListener("input",renderList);
 $("qaCopyName").onclick=()=>{$("qaPerson").value=$("qaName").value;invalidate();};
