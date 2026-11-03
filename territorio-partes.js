@@ -115,8 +115,8 @@ function redraw(){
  if(e("statMixed"))e("statMixed").textContent=count.mixed||0;
  const box=e("items"),q=(e("filter")?.value||"").toLowerCase().trim();if(!box)return;
  const filtered=ts.filter(t=>{
-  let d=detail(t),search=[t.numero,t.asignado_a,t.persona,names[d.s],
-   ...d.a.map(p=>p.manzanas+" "+p.asignado_a+" "+p.persona+" "+names[state(p)])].join(" ").toLowerCase();
+  let d=detail(t),search=[t.numero,t.asignado_a,t.persona,names[d.s],metaText(t),
+   ...d.a.map(p=>p.manzanas+" "+p.asignado_a+" "+p.persona+" "+names[state(p)]+" "+metaText(p))].join(" ").toLowerCase();
   return !q||search.includes(q);
  });
  box.innerHTML=filtered.length?filtered.map(t=>{
@@ -215,14 +215,14 @@ start.type="button";start.hidden=true;start.textContent="＋ Dividir territorio 
 notes.after(start);
 const region=document.createElement("section");region.id="partRegion";region.hidden=true;
 region.innerHTML='<p class="small">Elegí qué manzanas pertenecen a cada parte. '+
- 'Cada una tendrá su propio estado, fechas y observaciones. '+
+ 'Cada una tendrá su estado, fechas, momento de visita y tipo de día. '+
  'Marcá las casillas de cada parte. Para mover una manzana, tildala en la parte de destino.</p><div id="partCards"></div>'+
  '<div class="part-actions"><button type="button" id="partAdd">＋ Agregar parte</button>'+
  '<button type="button" id="partSave">Guardar partes</button>'+
  '<button type="button" id="partUndo">Volver a estado único</button></div>'+
  '<div id="partNotice" role="status"></div><div id="partHistory"></div>';
 start.after(region);
-const legacyIds=["status","assignmentDate","date","assignedTo","person","notes"];
+const legacyIds=["status","assignmentDate","date","assignedTo","person","notes","visitMetaGrid"];
 // Atajos del editor normal; no cambian estados ni guardan automáticamente.
 function normalCopy(sourceId,targetId,text,missing){
  const source=e(sourceId),target=e(targetId);
