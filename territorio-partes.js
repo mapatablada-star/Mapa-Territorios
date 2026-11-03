@@ -363,7 +363,8 @@ async function history(id){
  e("partHistory").innerHTML=error?"No se pudo cargar el historial.":!data?.length?
   "No hay cambios anteriores.":"<b>Últimos cambios de partes</b><br>"+
    data.map(x=>esc(new Date(x.created_at).toLocaleDateString("es-AR"))+" — "+
-    esc(x.accion)+" — "+esc(x.datos?.manzanas)+" — "+esc(names[x.datos?.estado]||"")).join("<br>");
+    esc(x.accion)+" — "+esc(x.datos?.manzanas)+" — "+esc(names[x.datos?.estado]||"")+
+    (metaText(x.datos||{})?" — "+esc(metaText(x.datos||{})):"")).join("<br>");
 }
 function show(){
  if(!sel||!ready)return;active=sel.id;
