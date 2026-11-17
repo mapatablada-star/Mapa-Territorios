@@ -26,76 +26,82 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
     const $ = id => d.getElementById(id);
     const area = $("area"), box = $("box"), img = $("map");
 
-    // Indicador del día de visita: punto pequeño junto al punto amarillo/naranja.
-    // El contorno anterior determina el color: gris = entre semana, negro = fin de semana.
+    // Indicadores de visita: color principal = franja; punto pequeño = tipo de día.
+    // Los puntos son botones HTML (.p), no círculos SVG.
     const pointsLayer = $("points");
-    if (pointsLayer && !pointsLayer.__visitDayEarObserver) {
-      const svgNS = "http://www.w3.org/2000/svg";
-      let visitDayMarkerId = 0;
-      const tuneVisitDayMarkers = () => {
-        pointsLayer.querySelectorAll("circle:not(.visit-day-ear)").forEach(point => {
-          const fill = (w.getComputedStyle(point).fill || "").replace(/\s/g,"").toLowerCase();
-          const matchFill = fill.match(/rgba?\((\d+),([0-9]+),([0-9]+)(?:,([0-9.]+))?\)/);
-          if (!matchFill) return;
-          const red = Number(matchFill[1]), green = Number(matchFill[2]), blue = Number(matchFill[3]);
-          if (!(red >= 180 && green >= 80 && red > green && blue < 150)) return;
-
-          let dayColor = point.dataset.visitDayColor || "";
-          if (!dayColor) {
-            const stroke = (w.getComputedStyle(point).stroke || "").replace(/\s/g,"").toLowerCase();
-            const rgb = stroke.match(/rgba?\((\d+),([0-9]+),([0-9]+)/);
-            if (stroke === "white" || stroke === "#fff" || stroke === "#ffffff" ||
-                (rgb && Number(rgb[1]) >= 200 && Number(rgb[2]) >= 200 && Number(rgb[3]) >= 200)) {
-              dayColor = "#687b8e";
-            } else if (stroke === "black" || stroke === "#000" || stroke === "#000000" ||
-                       (rgb && Number(rgb[1]) <= 80 && Number(rgb[2]) <= 80 && Number(rgb[3]) <= 80)) {
-              dayColor = "#111827";
-            } else if (point.dataset.tipoDia === "semana" || point.dataset.dayType === "semana") {
-              dayColor = "#687b8e";
-            } else if (point.dataset.tipoDia === "fin_de_semana" || point.dataset.dayType === "fin_de_semana") {
-              dayColor = "#111827";
-            } else {
-              return;
-            }
-            point.dataset.visitDayColor = dayColor;
-          }
-
-          const cx = Number(point.getAttribute("cx"));
-          const cy = Number(point.getAttribute("cy"));
-          const radius = Number(point.getAttribute("r"));
-          if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(radius) || radius <= 0) return;
-
-          if (w.getComputedStyle(point).stroke !== "none") {
-            point.style.setProperty("stroke", "none", "important");
-            point.style.setProperty("stroke-width", "0", "important");
-          }
-
-          const markerKey = point.dataset.visitDayMarkerKey ||
-            (point.dataset.visitDayMarkerKey = "visit-ear-" + (++visitDayMarkerId));
-          let ear = point.parentNode.querySelector('circle.visit-day-ear[data-for-point="' + markerKey + '"]');
-          if (!ear) {
-            ear = d.createElementNS(svgNS, "circle");
-            ear.setAttribute("class", "visit-day-ear");
-            ear.setAttribute("pointer-events", "none");
-            point.parentNode.appendChild(ear);
-          }
-          const setEarAttr = (name, value) => {
-            const textValue = String(value);
-            if (ear.getAttribute(name) !== textValue) ear.setAttribute(name, textValue);
-          };
-          if (ear.dataset.forPoint !== markerKey) ear.dataset.forPoint = markerKey;
-          setEarAttr("cx", cx + radius * 0.78);
-          setEarAttr("cy", cy - radius * 0.68);
-          setEarAttr("r", Math.max(1.7, radius * 0.48));
-          setEarAttr("fill", dayColor);
-          setEarAttr("stroke", "none");
-        });
-      };
-      tuneVisitDayMarkers();
-      const visitDayObserver = new w.MutationObserver(tuneVisitDayMarkers);
-      visitDayObserver.observe(pointsLayer, {childList:true,subtree:true,attributes:true,attributeFilter:["cx","cy","r","fill","stroke","style","class","data-day-type","data-tipo-dia"]});
-      pointsLayer.__visitDayEarObserver = visitDayObserver;
+    if (pointsLayer && !pointsLayer.__visitDayStyleInstalled) {
+      const visitDayStyle = d.createElement("style");
+      visitDayStyle.textContent = `
+        #points .p .visit-day-dot{
+          position:absolute;right:-3px;top:-3px;width:7px;height:7px;
+          border-radius:50%;border:1px solid #fff;
+          box-shadow:0 0 0 1px rgba(15,23,42,.24);
+          pointer-events:none;z-index:4;
+        }
+        #points .p .visit-day-dot.weekday{background:#9ca3af}
+        #points .p .visit-day-dot.weekend{background:#111827}
+      `;
+      d.head.appendChild(visitDayStyle);
+      pointsLayer.__visitDayStyleInstalled = true;
     }
+
+    const applyVisitDayMarkers = () => {
+      if (!pointsLayer || typeof ts === "undefined" || !Array.isArray(ts)) return;
+      const buttons = pointsLayer.querySelectorAll("button.p");
+      buttons.forEach((button, index) => {
+        const territory = ts[index];
+        if (!territory) return;
+
+        const state = typeof effectiveState === "function"
+          ? effectiveState(territory) : territory.estado;
+        const franja = territory.franja_visita;
+        const tipoDia = territory.tipo_dia;
+        const active = state === "assigned" &&
+          (franja === "manana" || franja === "tarde");
+
+        let dot = button.querySelector(".visit-day-dot");
+        if (!active) {
+          if (dot) dot.remove();
+          return;
+        }
+
+        if (franja === "manana") {
+          button.style.setProperty("--touch-color", "#a16207");
+          button.style.setProperty("--touch-bg", "#facc15");
+          button.style.setProperty("--touch-ring", "rgba(250,204,21,.34)");
+        } else {
+          button.style.setProperty("--touch-color", "#c2410c");
+          button.style.setProperty("--touch-bg", "#fb923c");
+          button.style.setProperty("--touch-ring", "rgba(251,146,60,.34)");
+        }
+
+        const dayClass = tipoDia === "semana" ? "weekday"
+          : tipoDia === "fin_de_semana" ? "weekend" : "";
+        if (!dayClass) {
+          if (dot) dot.remove();
+          return;
+        }
+        if (!dot) {
+          dot = d.createElement("span");
+          dot.className = "visit-day-dot";
+          dot.setAttribute("aria-hidden", "true");
+          button.appendChild(dot);
+        }
+        dot.className = "visit-day-dot " + dayClass;
+      });
+    };
+
+    if (typeof render === "function" && !render.__visitDayDecorated) {
+      const originalTerritoryRender = render;
+      const decoratedRender = function() {
+        const result = originalTerritoryRender.apply(this, arguments);
+        applyVisitDayMarkers();
+        return result;
+      };
+      decoratedRender.__visitDayDecorated = true;
+      render = decoratedRender;
+    }
+    applyVisitDayMarkers();
 
     const zoomIn = $("zoomIn"), zoomOut = $("zoomOut"), zoomReset = $("zoomReset"), zoomLabel = $("zoomLabel");
     const colorBtn = $("mapColorBtn"), hdBtn = $("mapHdBtn");
