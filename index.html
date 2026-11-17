@@ -26,24 +26,24 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
     const $ = id => d.getElementById(id);
     const area = $("area"), box = $("box"), img = $("map");
 
-    // Indicador del día de visita: un segundo punto pequeño junto al punto amarillo/naranja.
-    // El color del contorno anterior determina el nuevo punto: gris = entre semana, negro = fin de semana.
+    // Indicador del día de visita: punto pequeño junto al punto amarillo/naranja.
+    // El contorno anterior determina el color: gris = entre semana, negro = fin de semana.
     const pointsLayer = $("points");
     if (pointsLayer && !pointsLayer.__visitDayEarObserver) {
       const svgNS = "http://www.w3.org/2000/svg";
+      let visitDayMarkerId = 0;
       const tuneVisitDayMarkers = () => {
         pointsLayer.querySelectorAll("circle:not(.visit-day-ear)").forEach(point => {
-          const fill = (w.getComputedStyle(point).fill || "").replace(/\\s/g,"").toLowerCase();
-          const matchFill = fill.match(/rgba?\\((\\d+),([0-9]+),([0-9]+)(?:,([0-9.]+))?\\)/);
+          const fill = (w.getComputedStyle(point).fill || "").replace(/\s/g,"").toLowerCase();
+          const matchFill = fill.match(/rgba?\((\d+),([0-9]+),([0-9]+)(?:,([0-9.]+))?\)/);
           if (!matchFill) return;
           const red = Number(matchFill[1]), green = Number(matchFill[2]), blue = Number(matchFill[3]);
-          const isWarmPoint = red >= 180 && green >= 80 && red > green && blue < 150;
-          if (!isWarmPoint) return;
+          if (!(red >= 180 && green >= 80 && red > green && blue < 150)) return;
 
           let dayColor = point.dataset.visitDayColor || "";
           if (!dayColor) {
-            const stroke = (w.getComputedStyle(point).stroke || "").replace(/\\s/g,"").toLowerCase();
-            const rgb = stroke.match(/rgba?\\((\\d+),([0-9]+),([0-9]+)/);
+            const stroke = (w.getComputedStyle(point).stroke || "").replace(/\s/g,"").toLowerCase();
+            const rgb = stroke.match(/rgba?\((\d+),([0-9]+),([0-9]+)/);
             if (stroke === "white" || stroke === "#fff" || stroke === "#ffffff" ||
                 (rgb && Number(rgb[1]) >= 200 && Number(rgb[2]) >= 200 && Number(rgb[3]) >= 200)) {
               dayColor = "#687b8e";
@@ -65,17 +65,21 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
           const radius = Number(point.getAttribute("r"));
           if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(radius) || radius <= 0) return;
 
-          point.style.setProperty("stroke", "none", "important");
-          point.style.setProperty("stroke-width", "0", "important");
+          if (w.getComputedStyle(point).stroke !== "none") {
+            point.style.setProperty("stroke", "none", "important");
+            point.style.setProperty("stroke-width", "0", "important");
+          }
 
-          let ear = point.parentNode.querySelector('circle.visit-day-ear[data-for-point="' + (point.id || "") + '"]');
+          const markerKey = point.dataset.visitDayMarkerKey ||
+            (point.dataset.visitDayMarkerKey = "visit-ear-" + (++visitDayMarkerId));
+          let ear = point.parentNode.querySelector('circle.visit-day-ear[data-for-point="' + markerKey + '"]');
           if (!ear) {
             ear = d.createElementNS(svgNS, "circle");
             ear.setAttribute("class", "visit-day-ear");
             ear.setAttribute("pointer-events", "none");
             point.parentNode.appendChild(ear);
           }
-          ear.dataset.forPoint = point.id || "";
+          ear.dataset.forPoint = markerKey;
           ear.setAttribute("cx", String(cx + radius * 0.78));
           ear.setAttribute("cy", String(cy - radius * 0.68));
           ear.setAttribute("r", String(Math.max(1.7, radius * 0.48)));
