@@ -905,39 +905,6 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
     `;
     d.head.appendChild(masterpieceStyle);
 
-    // Contorno de día hábil: gris visible, fino y discreto. El negro de fin de semana queda intacto.
-    const weekdayOutlineStyle = d.createElement("style");
-    weekdayOutlineStyle.textContent = `
-      #points circle.weekday-outline,
-      #points circle[data-day-type="semana"]{
-        stroke:#687b8e!important;
-        stroke-width:1.5px!important;
-      }
-    `;
-    d.head.appendChild(weekdayOutlineStyle);
-
-    const tuneWeekdayOutlines = () => {
-      d.querySelectorAll("#points circle").forEach(circle => {
-        const stroke = (w.getComputedStyle(circle).stroke || "").replace(/\\s/g,"").toLowerCase();
-        const rgb = stroke.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/);
-        const isWhite = stroke === "white" || stroke === "#fff" || stroke === "#ffffff" ||
-          !!(rgb && Number(rgb[1]) >= 220 && Number(rgb[2]) >= 220 && Number(rgb[3]) >= 220);
-        if (isWhite) {
-          circle.style.setProperty("stroke", "#687b8e", "important");
-          circle.style.setProperty("stroke-width", "1.5px", "important");
-        }
-      });
-    };
-    tuneWeekdayOutlines();
-    const pointsLayer = $("points");
-    if (pointsLayer && !pointsLayer.__weekdayOutlineObserver) {
-      const outlineObserver = new MutationObserver(tuneWeekdayOutlines);
-      outlineObserver.observe(pointsLayer, {childList:true,subtree:true,attributes:true,attributeFilter:["stroke","style","class"]});
-      pointsLayer.__weekdayOutlineObserver = outlineObserver;
-    }
-
-
-
     // Lógica de Fecha de asignación, ejecutada dentro de la aplicación original.
     if (assignmentInput) {
       const assignmentLogic = d.createElement("script");
