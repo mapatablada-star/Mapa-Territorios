@@ -111,8 +111,12 @@ function visibleRecords() {
     if (activeTab === "pending" && archived) return false;
     if (activeTab === "archived" && !archived) return false;
     if (!query) return true;
+    const numberQuery = query.replace(/^(?:territorio|t)\\s*/i,"");
+    if (/^\\d+$/.test(numberQuery)) {
+      return String(row.numero_territorio).startsWith(numberQuery);
+    }
     const searchable = [
-      row.numero_territorio, row.manzanas, row.asignado_a, row.persona
+      row.manzanas, row.asignado_a, row.persona
     ].join(" ").toLocaleLowerCase("es-AR");
     return searchable.includes(query);
   });
