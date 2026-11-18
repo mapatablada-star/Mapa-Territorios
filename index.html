@@ -39,6 +39,16 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
         }
         #points .p .visit-day-dot.weekday{background:#9ca3af}
         #points .p .visit-day-dot.weekend{background:#111827}
+
+        /* Quitar el contorno del punto principal y su aro interior heredado. */
+        #points button.p{
+          border:0 !important;
+          box-shadow:none !important;
+        }
+        #points button.p::after{
+          display:none !important;
+          content:none !important;
+        }
       `;
       d.head.appendChild(visitDayStyle);
       pointsLayer.__visitDayStyleInstalled = true;
