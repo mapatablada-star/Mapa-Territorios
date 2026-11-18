@@ -102,6 +102,11 @@ function redraw(){
    dot.classList.toggle("afternoon",d.franja==="tarde");
    dot.classList.toggle("mixed",d.franja==="mixed");
   }else if(dot)dot.remove();
+  let dayDot=b.querySelector(".visit-day-dot");
+  if(d.tipoDia==="semana"||d.tipoDia==="fin_de_semana"){
+   if(!dayDot){dayDot=document.createElement("span");dayDot.className="visit-day-dot";dayDot.setAttribute("aria-hidden","true");b.appendChild(dayDot);}
+   dayDot.className="visit-day-dot "+(d.tipoDia==="semana"?"weekday":"weekend");
+  }else if(dayDot)dayDot.remove();
   const meta=d.a.length?d.a.map(p=>p.manzanas+": "+(metaText(p)||"Sin clasificar")).join(" | "):metaText(t);
   b.title="Territorio "+t.numero+(meta?" — "+meta:"");
  });
@@ -177,10 +182,11 @@ style.textContent=[
  "#partNotice{min-height:16px}",
  ".p.part-point{border:1.5px solid #fff!important;box-shadow:0 0 0 1px rgba(24,49,83,.16),0 3px 10px rgba(24,49,83,.22)!important}",
  ".p.visit-point{overflow:visible!important}",
- ".p.visit-weekday{box-shadow:0 0 0 2px #d8dee5,0 3px 10px rgba(24,49,83,.20)!important}",
- ".p.visit-weekend{box-shadow:0 0 0 2px #171717,0 3px 10px rgba(24,49,83,.25)!important}",
- ".p.visit-day-mixed{box-shadow:0 0 0 2px #8c969f,0 3px 10px rgba(24,49,83,.20)!important;outline:1px dashed #171717;outline-offset:2px}",
- ".p .visit-meta-dot{position:absolute;right:-4px;top:-4px;width:9px;height:9px;border:1.5px solid #fff;border-radius:50%;z-index:4;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.35)}",
+ ".p .visit-meta-dot,.p .visit-day-dot{position:absolute;top:50%;width:7px;height:7px;border:1px solid #fff;border-radius:50%;z-index:4;pointer-events:none;box-shadow:0 0 0 1px rgba(15,23,42,.24);transform:translateY(-50%)}",
+ ".p .visit-meta-dot{right:-7px}",
+ ".p .visit-day-dot{left:-7px}",
+ ".p .visit-day-dot.weekday{background:#9ca3af}",
+ ".p .visit-day-dot.weekend{background:#111827}",
  ".p .visit-meta-dot.morning{background:#f3cf45}",
  ".p .visit-meta-dot.afternoon{background:#ef8a2f}",
  ".p .visit-meta-dot.mixed{background:linear-gradient(135deg,#f3cf45 0 50%,#ef8a2f 50% 100%)}",
@@ -204,7 +210,7 @@ document.head.appendChild(style);
 const mapLegend=document.querySelector(".legend");
 if(mapLegend&&!document.getElementById("visitLegend")){
  const legend=document.createElement("div");legend.id="visitLegend";legend.className="visit-legend";
- legend.innerHTML='<span><i class="morning"></i>Mañana (punto amarillo)</span><span><i class="afternoon"></i>Tarde (punto naranja)</span><span><i class="weekday"></i>Entre semana (anillo gris)</span><span><i class="weekend"></i>Fin de semana (anillo negro)</span>';
+ legend.innerHTML='<span><i class="morning"></i>Mañana (punto amarillo)</span><span><i class="afternoon"></i>Tarde (punto naranja)</span><span><i class="weekday"></i>Entre semana (punto gris)</span><span><i class="weekend"></i>Fin de semana (punto negro)</span>';
  mapLegend.appendChild(legend);
 }
 const notes=e("notes"),panel=e("panel"),save=e("save");
