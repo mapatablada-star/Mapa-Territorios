@@ -33,22 +33,13 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
       const visitDayStyle = d.createElement("style");
       visitDayStyle.textContent = `
         #points .p .visit-day-dot{
-          position:absolute;left:-4px;top:50%;transform:translateY(-50%);
-          width:7px;height:7px;border-radius:50%;border:0;box-shadow:none;
+          position:absolute;left:-3px;top:-3px;width:7px;height:7px;
+          border-radius:50%;border:1px solid #fff;
+          box-shadow:0 0 0 1px rgba(15,23,42,.24);
           pointer-events:none;z-index:4;
         }
         #points .p .visit-day-dot.weekday{background:#9ca3af}
         #points .p .visit-day-dot.weekend{background:#111827}
-
-        /* Quitar el contorno del punto principal y su aro interior heredado. */
-        #points button.p{
-          border:0 !important;
-          box-shadow:none !important;
-        }
-        #points button.p::after{
-          display:none !important;
-          content:none !important;
-        }
       `;
       d.head.appendChild(visitDayStyle);
       pointsLayer.__visitDayStyleInstalled = true;
@@ -77,11 +68,11 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
         if (franja === "manana") {
           button.style.setProperty("--touch-color", "#a16207");
           button.style.setProperty("--touch-bg", "#facc15");
-          button.style.setProperty("--touch-ring", "transparent");
+          button.style.setProperty("--touch-ring", "rgba(250,204,21,.34)");
         } else {
           button.style.setProperty("--touch-color", "#c2410c");
           button.style.setProperty("--touch-bg", "#fb923c");
-          button.style.setProperty("--touch-ring", "transparent");
+          button.style.setProperty("--touch-ring", "rgba(251,146,60,.34)");
         }
 
         const dayClass = tipoDia === "semana" ? "weekday"
