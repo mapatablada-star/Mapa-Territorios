@@ -26,20 +26,26 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
     const $ = id => d.getElementById(id);
     const area = $("area"), box = $("box"), img = $("map");
 
-    // Indicadores de visita: color principal = franja; punto pequeño = tipo de día.
-    // Los puntos son botones HTML (.p), no círculos SVG.
+    // Indicadores de visita: dos puntos independientes a ambos lados del territorio.
+    // El círculo central conserva el color propio del estado (disponible/asignado/completado).
     const pointsLayer = $("points");
     if (pointsLayer && !pointsLayer.__visitDayStyleInstalled) {
       const visitDayStyle = d.createElement("style");
       visitDayStyle.textContent = `
-        #points .p .visit-day-dot{
-          position:absolute;left:-3px;top:-3px;width:7px;height:7px;
+        #points .p .visit-day-dot,
+        #points .p .visit-time-dot{
+          position:absolute;top:50%;width:7px;height:7px;
           border-radius:50%;border:1px solid #fff;
           box-shadow:0 0 0 1px rgba(15,23,42,.24);
+          transform:translateY(-50%);
           pointer-events:none;z-index:4;
         }
+        #points .p .visit-day-dot{left:-9px}
+        #points .p .visit-time-dot{right:-9px}
         #points .p .visit-day-dot.weekday{background:#9ca3af}
         #points .p .visit-day-dot.weekend{background:#111827}
+        #points .p .visit-time-dot.morning{background:#facc15}
+        #points .p .visit-time-dot.afternoon{background:#fb923c}
       `;
       d.head.appendChild(visitDayStyle);
       pointsLayer.__visitDayStyleInstalled = true;
@@ -59,35 +65,34 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
         const active = state === "assigned" &&
           (franja === "manana" || franja === "tarde");
 
-        let dot = button.querySelector(".visit-day-dot");
+        let dayDot = button.querySelector(".visit-day-dot");
+        let timeDot = button.querySelector(".visit-time-dot");
         if (!active) {
-          if (dot) dot.remove();
+          if (dayDot) dayDot.remove();
+          if (timeDot) timeDot.remove();
           return;
         }
 
-        if (franja === "manana") {
-          button.style.setProperty("--touch-color", "#a16207");
-          button.style.setProperty("--touch-bg", "#facc15");
-          button.style.setProperty("--touch-ring", "rgba(250,204,21,.34)");
-        } else {
-          button.style.setProperty("--touch-color", "#c2410c");
-          button.style.setProperty("--touch-bg", "#fb923c");
-          button.style.setProperty("--touch-ring", "rgba(251,146,60,.34)");
+        if (!timeDot) {
+          timeDot = d.createElement("span");
+          timeDot.setAttribute("aria-hidden", "true");
+          button.appendChild(timeDot);
         }
+        timeDot.className = "visit-time-dot " +
+          (franja === "manana" ? "morning" : "afternoon");
 
         const dayClass = tipoDia === "semana" ? "weekday"
           : tipoDia === "fin_de_semana" ? "weekend" : "";
         if (!dayClass) {
-          if (dot) dot.remove();
+          if (dayDot) dayDot.remove();
           return;
         }
-        if (!dot) {
-          dot = d.createElement("span");
-          dot.className = "visit-day-dot";
-          dot.setAttribute("aria-hidden", "true");
-          button.appendChild(dot);
+        if (!dayDot) {
+          dayDot = d.createElement("span");
+          dayDot.setAttribute("aria-hidden", "true");
+          button.appendChild(dayDot);
         }
-        dot.className = "visit-day-dot " + dayClass;
+        dayDot.className = "visit-day-dot " + dayClass;
       });
     };
 
@@ -103,7 +108,7 @@ iframe{display:block;width:100%;height:100%;border:0;background:#fff}
     }
     applyVisitDayMarkers();
 
-    const zoomIn = $("zoomIn"), zoomOut = $("zoomOut"), zoomReset = $("zoomReset"), zoomLabel = $("zoomLabel");
+        const zoomIn = $("zoomIn"), zoomOut = $("zoomOut"), zoomReset = $("zoomReset"), zoomLabel = $("zoomLabel");
     const colorBtn = $("mapColorBtn"), hdBtn = $("mapHdBtn");
     if(!area || !box || !img || !zoomIn || !zoomOut || !zoomReset || !zoomLabel) return;
 
